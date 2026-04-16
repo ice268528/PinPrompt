@@ -234,6 +234,13 @@ class PinPromptApp:
             self.refresh_prompts()
             self.status_bar.config(text="分类已删除")
     
+    def center_window(self, window, width, height):
+        """将窗口居中显示"""
+        window.update_idletasks()
+        x = (window.winfo_screenwidth() // 2) - (width // 2)
+        y = (window.winfo_screenheight() // 2) - (height // 2)
+        window.geometry(f'{width}x{height}+{x}+{y}')
+    
     def add_prompt(self):
         """添加Prompt"""
         if not self.current_category:
@@ -243,19 +250,23 @@ class PinPromptApp:
         # 创建对话框
         dialog = tk.Toplevel(self.root)
         dialog.title("新建Prompt")
-        dialog.geometry("500x400")
+        self.center_window(dialog, 500, 400)
         dialog.transient(self.root)
         dialog.grab_set()
         
+        # 主内容区
+        main_frame = ttk.Frame(dialog)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
         # 标题
-        ttk.Label(dialog, text="标题:").pack(anchor=tk.W, padx=10, pady=(10, 0))
-        title_entry = ttk.Entry(dialog, width=60, font=("Microsoft YaHei", 10))
-        title_entry.pack(padx=10, pady=5, fill=tk.X)
+        ttk.Label(main_frame, text="标题:").pack(anchor=tk.W)
+        title_entry = ttk.Entry(main_frame, font=("Microsoft YaHei", 10))
+        title_entry.pack(fill=tk.X, pady=(0, 10))
         
         # 内容
-        ttk.Label(dialog, text="内容:").pack(anchor=tk.W, padx=10, pady=(10, 0))
-        content_text = tk.Text(dialog, width=60, height=15, font=("Microsoft YaHei", 10))
-        content_text.pack(padx=10, pady=5, fill=tk.BOTH, expand=True)
+        ttk.Label(main_frame, text="内容:").pack(anchor=tk.W)
+        content_text = tk.Text(main_frame, font=("Microsoft YaHei", 10))
+        content_text.pack(fill=tk.BOTH, expand=True)
         
         def save():
             title = title_entry.get().strip()
@@ -275,11 +286,18 @@ class PinPromptApp:
             dialog.destroy()
             self.status_bar.config(text=f"已添加Prompt: {title}")
         
-        # 按钮
+        # 底部按钮区（固定在底部）
         btn_frame = ttk.Frame(dialog)
-        btn_frame.pack(pady=10)
-        ttk.Button(btn_frame, text="保存", command=save).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="取消", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
+        btn_frame.pack(fill=tk.X, padx=10, pady=10)
+        ttk.Button(btn_frame, text="保存 (Ctrl+S)", command=save).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(btn_frame, text="取消", command=dialog.destroy).pack(side=tk.RIGHT, padx=5)
+        
+        # 绑定 Ctrl+S 快捷键
+        dialog.bind('<Control-s>', lambda e: save())
+        dialog.bind('<Control-S>', lambda e: save())
+        
+        # 焦点设置到标题输入框
+        title_entry.focus_set()
     
     def edit_prompt(self, index):
         """编辑Prompt"""
@@ -289,21 +307,25 @@ class PinPromptApp:
         # 创建对话框
         dialog = tk.Toplevel(self.root)
         dialog.title("编辑Prompt")
-        dialog.geometry("500x400")
+        self.center_window(dialog, 500, 400)
         dialog.transient(self.root)
         dialog.grab_set()
         
+        # 主内容区
+        main_frame = ttk.Frame(dialog)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
         # 标题
-        ttk.Label(dialog, text="标题:").pack(anchor=tk.W, padx=10, pady=(10, 0))
-        title_entry = ttk.Entry(dialog, width=60, font=("Microsoft YaHei", 10))
+        ttk.Label(main_frame, text="标题:").pack(anchor=tk.W)
+        title_entry = ttk.Entry(main_frame, font=("Microsoft YaHei", 10))
         title_entry.insert(0, prompt.get("title", ""))
-        title_entry.pack(padx=10, pady=5, fill=tk.X)
+        title_entry.pack(fill=tk.X, pady=(0, 10))
         
         # 内容
-        ttk.Label(dialog, text="内容:").pack(anchor=tk.W, padx=10, pady=(10, 0))
-        content_text = tk.Text(dialog, width=60, height=15, font=("Microsoft YaHei", 10))
+        ttk.Label(main_frame, text="内容:").pack(anchor=tk.W)
+        content_text = tk.Text(main_frame, font=("Microsoft YaHei", 10))
         content_text.insert("1.0", prompt.get("content", ""))
-        content_text.pack(padx=10, pady=5, fill=tk.BOTH, expand=True)
+        content_text.pack(fill=tk.BOTH, expand=True)
         
         def save():
             title = title_entry.get().strip()
@@ -324,11 +346,18 @@ class PinPromptApp:
             dialog.destroy()
             self.status_bar.config(text=f"已更新Prompt: {title}")
         
-        # 按钮
+        # 底部按钮区（固定在底部）
         btn_frame = ttk.Frame(dialog)
-        btn_frame.pack(pady=10)
-        ttk.Button(btn_frame, text="保存", command=save).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="取消", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
+        btn_frame.pack(fill=tk.X, padx=10, pady=10)
+        ttk.Button(btn_frame, text="保存 (Ctrl+S)", command=save).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(btn_frame, text="取消", command=dialog.destroy).pack(side=tk.RIGHT, padx=5)
+        
+        # 绑定 Ctrl+S 快捷键
+        dialog.bind('<Control-s>', lambda e: save())
+        dialog.bind('<Control-S>', lambda e: save())
+        
+        # 焦点设置到标题输入框
+        title_entry.focus_set()
     
     def delete_prompt(self, index):
         """删除Prompt"""
