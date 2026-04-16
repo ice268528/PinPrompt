@@ -101,8 +101,9 @@ class PinPromptApp:
         self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # 鼠标滚轮绑定
-        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+        # 鼠标滚轮绑定（只绑定到canvas，不是全局）
+        self.canvas.bind("<MouseWheel>", self._on_mousewheel)
+        self.scrollable_frame.bind("<MouseWheel>", self._on_mousewheel)
         
         # 底部状态栏
         self.status_bar = ttk.Label(self.root, text="就绪", relief=tk.SUNKEN, anchor=tk.W)
@@ -196,15 +197,19 @@ class PinPromptApp:
         ttk.Separator(self.scrollable_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=2)
     
     def show_toast(self, message, duration=1500):
-        """显示自动消失的提示"""
+        """显示自动消失的提示（在主窗口上方）"""
         toast = tk.Toplevel(self.root)
         toast.overrideredirect(True)
-        toast.attributes('-topmost', True)
         
-        # 居中显示
-        toast.update_idletasks()
-        x = (toast.winfo_screenwidth() // 2) - (150 // 2)
-        y = (toast.winfo_screenheight() // 2) - (30 // 2)
+        # 在主窗口上方居中显示
+        self.root.update_idletasks()
+        root_x = self.root.winfo_x()
+        root_y = self.root.winfo_y()
+        root_w = self.root.winfo_width()
+        root_h = self.root.winfo_height()
+        
+        x = root_x + (root_w // 2) - (150 // 2)
+        y = root_y - 40  # 在主窗口顶部上方
         toast.geometry(f'150x30+{x}+{y}')
         
         label = tk.Label(
