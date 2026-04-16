@@ -195,18 +195,39 @@ class PinPromptApp:
         # 分隔线
         ttk.Separator(self.scrollable_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=2)
     
+    def show_toast(self, message, duration=1500):
+        """显示自动消失的提示"""
+        toast = tk.Toplevel(self.root)
+        toast.overrideredirect(True)
+        toast.attributes('-topmost', True)
+        
+        # 居中显示
+        toast.update_idletasks()
+        x = (toast.winfo_screenwidth() // 2) - (150 // 2)
+        y = (toast.winfo_screenheight() // 2) - (30 // 2)
+        toast.geometry(f'150x30+{x}+{y}')
+        
+        label = tk.Label(
+            toast, text=message, font=("Microsoft YaHei", 10),
+            bg='#2ed573', fg='white', padx=10, pady=5
+        )
+        label.pack(fill=tk.BOTH, expand=True)
+        
+        # 自动销毁
+        toast.after(duration, toast.destroy)
+        
     def copy_prompt(self, content):
         """复制Prompt到剪贴板"""
         try:
             pyperclip.copy(content)
             self.status_bar.config(text="✅ 已复制到剪贴板")
-            messagebox.showinfo("成功", "Prompt已复制到剪贴板！")
+            self.show_toast("✅ 已复制到剪贴板")
         except Exception as e:
             # 备用方案
             self.root.clipboard_clear()
             self.root.clipboard_append(content)
             self.status_bar.config(text="✅ 已复制到剪贴板")
-            messagebox.showinfo("成功", "Prompt已复制到剪贴板！")
+            self.show_toast("✅ 已复制到剪贴板")
     
     def add_category(self):
         """添加分类"""
@@ -250,32 +271,68 @@ class PinPromptApp:
         # 创建对话框
         dialog = tk.Toplevel(self.root)
         dialog.title("新建Prompt")
-        self.center_window(dialog, 500, 400)
+        self.center_window(dialog, 550, 350)
         dialog.transient(self.root)
         dialog.grab_set()
         
-        # 主内容区
-        main_frame = ttk.Frame(dialog)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # 使用 PanedWindow 分割内容区和按钮区
+        paned = ttk.PanedWindow(dialog, orient=tk.VERTICAL)
+        paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # 内容区
+        content_frame = ttk.Frame(paned)
+        paned.add(content_frame, weight=1)
         
         # 标题
-        ttk.Label(main_frame, text="标题:").pack(anchor=tk.W)
-        title_entry = ttk.Entry(main_frame, font=("Microsoft YaHei", 10))
+        ttk.Label(content_frame, text="标题:").pack(anchor=tk.W)
+        title_entry = ttk.Entry(content_frame, font=("Microsoft YaHei", 10))
         title_entry.pack(fill=tk.X, pady=(0, 10))
         
-        # 内容
-        ttk.Label(main_frame, text="内容:").pack(anchor=tk.W)
-        content_text = tk.Text(main_frame, font=("Microsoft YaHei", 10))
-        content_text.pack(fill=tk.BOTH, expand=True)
+        # 内容 - 可滚动
+        text_frame = ttk.Frame(content_frame)
+        text_frame.pack(fill=tk.BOTH, expand=True)
         
-        def save():
-            title = title_entry.get().strip()
-            content = content_text.get("1.0", tk.END).strip()
-            
-            if not title or not content:
-                messagebox.showwarning("警告", "标题和内容不能为空！")
-                return
-            
+        content_text = tk.Text(text_frame, font=("Microsoft YaHei", 10), wrap=tk.WORD)
+        content_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        y_scroll = ttk.Scrollbar(text_frame, command=content_text.yview)
+        y_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        content_text.config(yscrollcommand=y_scroll.set)
+        
+        # 按钮区
+        btn_frame = ttk.Frame(paned)
+        paned.add(btn_frame, weight=0)
+        ttk.Button(btn_frame, text="保存 (Ctrl+S)", command=lambda: self._save_prompt(dialog, title_entry, content_text, False)).pack(side=tk.RIGHT, padx=5, pady=5)
+        ttk.Button(btn_frame, text="取消", command=dialog.destroy).pack(side=tk.RIGHT, padx=5, pady=5)
+        
+        # 绑定 Ctrl+S 快捷键
+        dialog.bind('<Control-s>', lambda e: self._save_prompt(dialog, title_entry, content_text, False))
+        dialog.bind('<Control-S>', lambda e: self._save_prompt(dialog, title_entry, content_text, False))
+        
+        # 焦点设置到标题输入框
+        title_entry.focus_set()
+    
+    def _save_prompt(self, dialog, title_entry, content_text, is_edit=False, index=None):
+        """保存Prompt的内部方法"""
+        title = title_entry.get().strip()
+        content = content_text.get("1.0", tk.END).strip()
+        
+        if not title or not content:
+            messagebox.showwarning("警告", "标题和内容不能为空！")
+            return
+        
+        if is_edit and index is not None:
+            prompts = self.data["categories"][self.current_category]["prompts"]
+            prompts[index] = {
+                "title": title,
+                "content": content,
+                "created": prompts[index].get("created", ""),
+                "modified": datetime.now().strftime("%Y-%m-%d %H:%M")
+            }
+            self.save_data()
+            self.refresh_prompts()
+            self.status_bar.config(text=f"已更新Prompt: {title}")
+        else:
             self.data["categories"][self.current_category]["prompts"].append({
                 "title": title,
                 "content": content,
@@ -283,21 +340,9 @@ class PinPromptApp:
             })
             self.save_data()
             self.refresh_prompts()
-            dialog.destroy()
             self.status_bar.config(text=f"已添加Prompt: {title}")
         
-        # 底部按钮区（固定在底部）
-        btn_frame = ttk.Frame(dialog)
-        btn_frame.pack(fill=tk.X, padx=10, pady=10)
-        ttk.Button(btn_frame, text="保存 (Ctrl+S)", command=save).pack(side=tk.RIGHT, padx=5)
-        ttk.Button(btn_frame, text="取消", command=dialog.destroy).pack(side=tk.RIGHT, padx=5)
-        
-        # 绑定 Ctrl+S 快捷键
-        dialog.bind('<Control-s>', lambda e: save())
-        dialog.bind('<Control-S>', lambda e: save())
-        
-        # 焦点设置到标题输入框
-        title_entry.focus_set()
+        dialog.destroy()
     
     def edit_prompt(self, index):
         """编辑Prompt"""
@@ -307,54 +352,45 @@ class PinPromptApp:
         # 创建对话框
         dialog = tk.Toplevel(self.root)
         dialog.title("编辑Prompt")
-        self.center_window(dialog, 500, 400)
+        self.center_window(dialog, 550, 350)
         dialog.transient(self.root)
         dialog.grab_set()
         
-        # 主内容区
-        main_frame = ttk.Frame(dialog)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # 使用 PanedWindow 分割内容区和按钮区
+        paned = ttk.PanedWindow(dialog, orient=tk.VERTICAL)
+        paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # 内容区
+        content_frame = ttk.Frame(paned)
+        paned.add(content_frame, weight=1)
         
         # 标题
-        ttk.Label(main_frame, text="标题:").pack(anchor=tk.W)
-        title_entry = ttk.Entry(main_frame, font=("Microsoft YaHei", 10))
+        ttk.Label(content_frame, text="标题:").pack(anchor=tk.W)
+        title_entry = ttk.Entry(content_frame, font=("Microsoft YaHei", 10))
         title_entry.insert(0, prompt.get("title", ""))
         title_entry.pack(fill=tk.X, pady=(0, 10))
         
-        # 内容
-        ttk.Label(main_frame, text="内容:").pack(anchor=tk.W)
-        content_text = tk.Text(main_frame, font=("Microsoft YaHei", 10))
+        # 内容 - 可滚动
+        text_frame = ttk.Frame(content_frame)
+        text_frame.pack(fill=tk.BOTH, expand=True)
+        
+        content_text = tk.Text(text_frame, font=("Microsoft YaHei", 10), wrap=tk.WORD)
+        content_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         content_text.insert("1.0", prompt.get("content", ""))
-        content_text.pack(fill=tk.BOTH, expand=True)
         
-        def save():
-            title = title_entry.get().strip()
-            content = content_text.get("1.0", tk.END).strip()
-            
-            if not title or not content:
-                messagebox.showwarning("警告", "标题和内容不能为空！")
-                return
-            
-            prompts[index] = {
-                "title": title,
-                "content": content,
-                "created": prompt.get("created", ""),
-                "modified": datetime.now().strftime("%Y-%m-%d %H:%M")
-            }
-            self.save_data()
-            self.refresh_prompts()
-            dialog.destroy()
-            self.status_bar.config(text=f"已更新Prompt: {title}")
+        y_scroll = ttk.Scrollbar(text_frame, command=content_text.yview)
+        y_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        content_text.config(yscrollcommand=y_scroll.set)
         
-        # 底部按钮区（固定在底部）
-        btn_frame = ttk.Frame(dialog)
-        btn_frame.pack(fill=tk.X, padx=10, pady=10)
-        ttk.Button(btn_frame, text="保存 (Ctrl+S)", command=save).pack(side=tk.RIGHT, padx=5)
-        ttk.Button(btn_frame, text="取消", command=dialog.destroy).pack(side=tk.RIGHT, padx=5)
+        # 按钮区
+        btn_frame = ttk.Frame(paned)
+        paned.add(btn_frame, weight=0)
+        ttk.Button(btn_frame, text="保存 (Ctrl+S)", command=lambda: self._save_prompt(dialog, title_entry, content_text, True, index)).pack(side=tk.RIGHT, padx=5, pady=5)
+        ttk.Button(btn_frame, text="取消", command=dialog.destroy).pack(side=tk.RIGHT, padx=5, pady=5)
         
         # 绑定 Ctrl+S 快捷键
-        dialog.bind('<Control-s>', lambda e: save())
-        dialog.bind('<Control-S>', lambda e: save())
+        dialog.bind('<Control-s>', lambda e: self._save_prompt(dialog, title_entry, content_text, True, index))
+        dialog.bind('<Control-S>', lambda e: self._save_prompt(dialog, title_entry, content_text, True, index))
         
         # 焦点设置到标题输入框
         title_entry.focus_set()
