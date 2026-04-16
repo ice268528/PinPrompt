@@ -27,6 +27,10 @@ class PinPromptApp:
         self.data = self.load_data()
         self.current_category = None
         
+        # 滚动优化：记录上次滚动时间，避免过于频繁的更新
+        self._last_scroll_time = 0
+        self._scroll_pending = False
+        
         # 创建UI
         self.create_ui()
         
@@ -100,13 +104,14 @@ class PinPromptApp:
         right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
         # 创建Canvas和Scrollbar实现滚动
-        self.canvas = tk.Canvas(right_frame, bg="#f5f5f5")
+        self.canvas = tk.Canvas(right_frame, bg="#f5f5f5", highlightthickness=0)
         scrollbar = ttk.Scrollbar(right_frame, orient=tk.VERTICAL, command=self.canvas.yview)
         self.scrollable_frame = ttk.Frame(self.canvas)
         
+        # 只在真正需要时更新scrollregion，避免频繁重绘
         self.scrollable_frame.bind(
             "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+            self._on_frame_configure
         )
         
         self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
@@ -122,10 +127,25 @@ class PinPromptApp:
         # 底部状态栏
         self.status_bar = ttk.Label(self.root, text="就绪", relief=tk.SUNKEN, anchor=tk.W)
         self.status_bar.pack(fill=tk.X, side=tk.BOTTOM)
+    
+    def _on_frame_configure(self, event):
+        """帧配置事件 - 延迟更新scrollregion"""
+        # 使用 after_idle 避免频繁更新
+        if not self._scroll_pending:
+            self._scroll_pending = True
+            self.canvas.after_idle(self._update_scrollregion)
+    
+    def _update_scrollregion(self):
+        """更新滚动区域"""
+        self._scroll_pending = False
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         
     def _on_mousewheel(self, event):
-        """鼠标滚轮事件"""
-        self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        """鼠标滚轮事件 - 优化滚动"""
+        # 直接滚动，不节流（节流会导致更明显的延迟）
+        delta = event.delta
+        if delta:
+            self.canvas.yview_scroll(int(-1 * (delta / 120)), "units")
     
     def toggle_on_top(self):
         """切换置顶状态"""
