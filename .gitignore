@@ -21,3 +21,6 @@ Thumbs.db
 # 临时文件
 *.tmp
 *.log
+
+# 用户数据（不需要上传）
+prompts.json
