@@ -69,6 +69,20 @@ class PinPromptApp:
         )
         self.top_btn.pack(side=tk.LEFT, padx=2)
         
+        # 右上角提示标签（用于显示复制成功等提示）
+        self.toast_label = tk.Label(
+            toolbar, 
+            text="", 
+            font=("Microsoft YaHei", 10),
+            bg='#2ed573', 
+            fg='white', 
+            padx=10, 
+            pady=2
+        )
+        # 初始不显示
+        self.toast_label.pack(side=tk.RIGHT, padx=5)
+        self.toast_label.pack_forget()
+        
         # 主内容区
         main_frame = ttk.Frame(self.root, padding=5)
         main_frame.pack(fill=tk.BOTH, expand=True)
@@ -197,29 +211,12 @@ class PinPromptApp:
         ttk.Separator(self.scrollable_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=2)
     
     def show_toast(self, message, duration=1500):
-        """显示自动消失的提示（在主窗口上方）"""
-        toast = tk.Toplevel(self.root)
-        toast.overrideredirect(True)
+        """在主窗口右上角显示提示"""
+        self.toast_label.config(text=message)
+        self.toast_label.pack(side=tk.RIGHT, padx=5)
         
-        # 在主窗口上方居中显示
-        self.root.update_idletasks()
-        root_x = self.root.winfo_x()
-        root_y = self.root.winfo_y()
-        root_w = self.root.winfo_width()
-        root_h = self.root.winfo_height()
-        
-        x = root_x + (root_w // 2) - (150 // 2)
-        y = root_y - 40  # 在主窗口顶部上方
-        toast.geometry(f'150x30+{x}+{y}')
-        
-        label = tk.Label(
-            toast, text=message, font=("Microsoft YaHei", 10),
-            bg='#2ed573', fg='white', padx=10, pady=5
-        )
-        label.pack(fill=tk.BOTH, expand=True)
-        
-        # 自动销毁
-        toast.after(duration, toast.destroy)
+        # 自动隐藏
+        self.toast_label.after(duration, lambda: self.toast_label.pack_forget())
         
     def copy_prompt(self, content):
         """复制Prompt到剪贴板"""
