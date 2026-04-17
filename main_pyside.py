@@ -21,25 +21,17 @@ import pyperclip
 # Windows API 用于窗口置顶
 if sys.platform == 'win32':
     import ctypes
+    from ctypes import wintypes
     
     user32 = ctypes.windll.user32
     
-    # 定义 SetWindowPos 函数原型
-    prototype = ctypes.WINFUNCTYPE(
-        ctypes.c_bool,      # 返回类型
-        ctypes.c_void_p,    # hWnd
-        ctypes.c_void_p,    # hWndInsertAfter
-        ctypes.c_int,       # X
-        ctypes.c_int,       # Y
-        ctypes.c_int,       # cx
-        ctypes.c_int,       # cy
-        ctypes.c_uint       # uFlags
-    )
-    SetWindowPos = prototype(('SetWindowPos', user32))
+    # 定义 SetWindowPos 函数
+    SetWindowPos = user32.SetWindowPos
+    SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint]
+    SetWindowPos.restype = wintypes.BOOL
     
-    # 使用正确的 HWND 常量值
-    HWND_TOPMOST = ctypes.c_void_p(-1)  # 置顶
-    HWND_NOTOPMOST = ctypes.c_void_p(-2)  # 取消置顶
+    HWND_TOPMOST = -1
+    HWND_NOTOPMOST = -2
     SWP_NOMOVE = 0x0002
     SWP_NOSIZE = 0x0001
     SWP_SHOWWINDOW = 0x0040
@@ -546,19 +538,27 @@ class PinPromptApp(QMainWindow):
             self.status_bar.showMessage("Prompt 已删除")
     
     def toggle_on_top(self, state):
-        """切换窗口置顶"""
-        if state == Qt.Checked:
-            # 使用旧版 API 设置置顶
-            self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
-            self.status_bar.showMessage("已置顶")
+        """切换窗口置顶 - 使用 Windows API 强制置顶"""
+        if sys.platform == 'win32':
+            hwnd = int(self.winId())
+            
+            if state == Qt.Checked:
+                # 强制置顶
+                SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
+                            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
+                self.status_bar.showMessage("已置顶")
+            else:
+                # 取消置顶
+                SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
+                            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
+                self.status_bar.showMessage("取消置顶")
         else:
-            self.setWindowFlags(self.windowFlags() & ~Qt.WindowStaysOnTopHint)
-            self.status_bar.showMessage("取消置顶")
-        
-        # 应用更改并提升窗口
-        self.show()
-        self.raise_()
-        self.activateWindow()
+            # 非 Windows 系统使用 Qt 方式
+            if state == Qt.Checked:
+                self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
+            else:
+                self.setWindowFlags(self.windowFlags() & ~Qt.WindowStaysOnTopHint)
+            self.show()
     
     def show_toast(self, message, duration=1500):
         """显示 Toast 提示"""
