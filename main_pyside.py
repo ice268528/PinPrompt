@@ -18,6 +18,16 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QIcon, QKeySequence, QShortcut
 import pyperclip
 
+# Windows API 用于窗口置顶
+if sys.platform == 'win32':
+    import ctypes
+    user32 = ctypes.windll.user32
+    HWND_TOPMOST = -1
+    HWND_NOTOPMOST = -2
+    SWP_NOMOVE = 0x0002
+    SWP_NOSIZE = 0x0001
+    SWP_SHOWWINDOW = 0x0040
+
 # 数据文件路径（exe 打包时放在 exe 同级目录，开发时放在脚本目录）
 if getattr(sys, 'frozen', False):
     DATA_DIR = os.path.dirname(sys.executable)
@@ -519,22 +529,27 @@ class PinPromptApp(QMainWindow):
     
     def toggle_on_top(self, state):
         """切换窗口置顶"""
-        # 保存当前位置和大小
-        geom = self.geometry()
-        
-        if state == Qt.Checked:
-            self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
+        if sys.platform == 'win32':
+            # 使用 Windows API 设置窗口置顶，避免 setWindowFlags 导致的问题
+            hwnd = int(self.winId())
+            if state == Qt.Checked:
+                # 设置置顶
+                user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
+                                   SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
+                self.status_bar.showMessage("已置顶")
+            else:
+                # 取消置顶
+                user32.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
+                                   SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
+                self.status_bar.showMessage("取消置顶")
         else:
-            self.setWindowFlags(self.windowFlags() & ~Qt.WindowStaysOnTopHint)
-        
-        # 恢复位置和大小，并显示
-        self.setGeometry(geom)
-        self.show()
-        self.raise_()
-        self.activateWindow()
-        
-        status = "已置顶" if state == Qt.Checked else "取消置顶"
-        self.status_bar.showMessage(status)
+            # 非 Windows 系统使用 Qt 方式
+            if state == Qt.Checked:
+                self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
+            else:
+                self.setWindowFlags(self.windowFlags() & ~Qt.WindowStaysOnTopHint)
+            self.show()
+            self.status_bar.showMessage("已置顶" if state == Qt.Checked else "取消置顶")
     
     def show_toast(self, message, duration=1500):
         """显示 Toast 提示"""
