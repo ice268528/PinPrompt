@@ -550,35 +550,43 @@ class PinPromptApp(QMainWindow):
             
             # 调试日志写入文件
             with open("debug_top.txt", "a", encoding="utf-8") as f:
-                f.write(f"[DEBUG] hwnd = {hwnd.value}\n")
+                f.write(f"[DEBUG] hwnd = {hwnd.value}, state = {state}\n")
             
-            if state == Qt.Checked:
-                # 直接用 SetWindowPos 强制置顶
-                # -1 = HWND_TOPMOST
-                result = SetWindowPos(hwnd, -1, 0, 0, 0, 0, 
-                            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOACTIVATE)
+            try:
+                if state == Qt.Checked:
+                    # 直接用 SetWindowPos 强制置顶
+                    result = SetWindowPos(hwnd, -1, 0, 0, 0, 0, 
+                                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOACTIVATE)
+                    with open("debug_top.txt", "a", encoding="utf-8") as f:
+                        f.write(f"[DEBUG] SetWindowPos result = {result}\n")
+                    
+                    # 再次调用确保置顶
+                    result2 = SetWindowPos(hwnd, -1, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)
+                    with open("debug_top.txt", "a", encoding="utf-8") as f:
+                        f.write(f"[DEBUG] SetWindowPos again result = {result2}\n")
+                    
+                    # 尝试 BringWindowToTop
+                    bring_result = user32.BringWindowToTop(hwnd)
+                    with open("debug_top.txt", "a", encoding="utf-8") as f:
+                        f.write(f"[DEBUG] BringWindowToTop result = {bring_result}\n")
+                    
+                    # 尝试 SetForegroundWindow
+                    fg_result = user32.SetForegroundWindow(hwnd)
+                    with open("debug_top.txt", "a", encoding="utf-8") as f:
+                        f.write(f"[DEBUG] SetForegroundWindow result = {fg_result}\n")
+                    
+                    self.status_bar.showMessage("已置顶")
+                else:
+                    # 取消置顶 -2 = HWND_NOTOPMOST
+                    result = SetWindowPos(hwnd, -2, 0, 0, 0, 0,
+                                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOACTIVATE)
+                    with open("debug_top.txt", "a", encoding="utf-8") as f:
+                        f.write(f"[DEBUG] SetWindowPos result = {result}\n")
+                    
+                    self.status_bar.showMessage("取消置顶")
+            except Exception as e:
                 with open("debug_top.txt", "a", encoding="utf-8") as f:
-                    f.write(f"[DEBUG] SetWindowPos result = {result}\n")
-                
-                # 再次调用确保置顶
-                result2 = SetWindowPos(hwnd, -1, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)
-                with open("debug_top.txt", "a", encoding="utf-8") as f:
-                    f.write(f"[DEBUG] SetWindowPos again result = {result2}\n")
-                
-                # 尝试 BringWindowToTop
-                user32.BringWindowToTop(hwnd)
-                with open("debug_top.txt", "a", encoding="utf-8") as f:
-                    f.write(f"[DEBUG] BringWindowToTop called\n")
-                
-                self.status_bar.showMessage("已置顶")
-            else:
-                # 取消置顶 -2 = HWND_NOTOPMOST
-                result = SetWindowPos(hwnd, -2, 0, 0, 0, 0,
-                            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOACTIVATE)
-                with open("debug_top.txt", "a", encoding="utf-8") as f:
-                    f.write(f"[DEBUG] SetWindowPos result = {result}\n")
-                
-                self.status_bar.showMessage("取消置顶")
+                    f.write(f"[DEBUG] Exception: {e}\n")
         else:
             # 非 Windows 系统使用 Qt 方式
             if state == Qt.Checked:
