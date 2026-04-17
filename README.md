@@ -1,53 +1,74 @@
 # PinPrompt - Prompt 分类管理工具
 
-一个轻量级的桌面 Prompt 管理工具，支持分类存储、窗口置顶、一键复制。
+一个轻量级的桌面 Prompt 管理工具，使用 PySide6 构建，支持分类存储、窗口置顶、一键复制、关键词搜索。
 
-## 功能特性
+## ✨ 功能特性
 
-- ✅ **分类管理**：创建多个分类，按类别组织 Prompt
-- ✅ **一键复制**：每个 Prompt 都有独立的复制按钮
-- ✅ **窗口置顶**：支持窗口置顶，方便随时查看
-- ✅ **编辑删除**：支持 Prompt 的编辑和删除
-- ✅ **数据持久化**：数据保存在本地 JSON 文件中
+- **分类管理** — 创建多个分类，按类别组织 Prompt
+- **一键复制** — 每个 Prompt 独立复制按钮，复制后显示 Toast 提示
+- **窗口置顶** — 使用 Windows API 实现窗口置顶，不影响关闭按钮
+- **关键词搜索** — 按标题和内容实时过滤 Prompt
+- **编辑删除** — 支持 Prompt 的编辑和删除，记录创建/修改时间
+- **数据持久化** — 数据保存在本地 JSON 文件中，exe 和开发环境均可正确读写
+- **快捷操作** — 编辑弹窗内支持 Ctrl+S 快速保存
+- **无黑框启动** — 通过 VBS 脚本启动，无命令行窗口
 
-## 快速启动
+## 🚀 快速启动
 
-### 推荐：无黑框启动 ⭐
-```bash
-# 双击此文件，无命令行黑框
-.\start.vbs
-```
+### 方式一：双击 exe（推荐）
 
-> 💡 建议右键 `start.vbs` → 发送到 → 桌面快捷方式，方便启动
+直接运行 `dist/PinPrompt.exe`，无需安装 Python。
 
-### 方式二：命令行启动
-```bash
-python main.py
-```
-
-### 方式三：无窗口命令行启动
-```bash
-pythonw main.py
-```
-
-## 依赖安装
+### 方式二：VBS 无黑框启动
 
 ```bash
-pip install pyperclip
+双击 start.vbs
 ```
 
-> 注：tkinter 是 Python 内置库，无需额外安装
+> 💡 建议右键 `start.vbs` → 发送到 → 桌面快捷方式
 
-## 使用说明
+### 方式三：命令行启动
 
-1. **创建分类**：点击「新建分类」按钮
-2. **添加 Prompt**：选择分类后，点击「新建 Prompt」
-3. **复制 Prompt**：点击 Prompt 卡片上的「复制」按钮
-4. **窗口置顶**：勾选「窗口置顶」选项
+```bash
+# 激活 PinPrompt conda 环境
+conda activate PinPrompt
+python main_pyside.py
+```
 
-## 数据存储
+## 📦 依赖安装
 
-数据保存在 `prompts.json` 文件中，格式如下：
+```bash
+conda create -n PinPrompt python=3.13 -y
+conda activate PinPrompt
+pip install PySide6 pyperclip
+```
+
+## 🔨 打包为 exe
+
+```bash
+conda activate PinPrompt
+python -m PyInstaller --noconfirm --onefile --windowed --name "PinPrompt" main_pyside.py
+```
+
+打包产物位于 `dist/PinPrompt.exe`（约 45MB）。
+
+## 📖 使用说明
+
+| 操作 | 说明 |
+|------|------|
+| 新建分类 | 点击顶部「➕ 新建分类」按钮，输入分类名称 |
+| 选择分类 | 点击左侧分类列表切换 |
+| 新建 Prompt | 选择分类后，点击「📝 新建Prompt」 |
+| 复制 Prompt | 点击卡片上的「📋 复制」按钮 |
+| 编辑 Prompt | 点击卡片上的「✏️ 编辑」按钮（弹窗内 Ctrl+S 保存） |
+| 删除 Prompt | 点击卡片上的「🗑️ 删除」按钮，确认后删除 |
+| 搜索 Prompt | 在搜索框输入关键词，实时按标题和内容过滤 |
+| 窗口置顶 | 勾选「📌 窗口置顶」复选框 |
+| 删除分类 | 选中分类后，点击「🗑️ 删除分类」，确认后删除（连同所有 Prompt） |
+
+## 📁 数据存储
+
+数据保存在 `prompts.json` 文件中（已在 .gitignore 中排除），格式如下：
 
 ```json
 {
@@ -57,7 +78,8 @@ pip install pyperclip
         {
           "title": "代码审查",
           "content": "请帮我审查以下代码...",
-          "created": "2026-04-16 23:42"
+          "created": "2026-04-16 23:42",
+          "modified": "2026-04-17 15:30"
         }
       ]
     }
@@ -65,7 +87,36 @@ pip install pyperclip
 }
 ```
 
-## 系统要求
+> exe 打包后，数据文件与 exe 同级目录；开发环境下，数据文件与脚本同级目录。
 
-- Python 3.7+
-- Windows / macOS / Linux
+## 📂 项目结构
+
+```
+PinPrompt/
+├── main_pyside.py    # PySide6 主程序
+├── start.vbs          # 无黑框启动脚本
+├── prompts.json       # 数据文件（自动生成，不提交）
+├── requirements.txt   # 依赖清单
+├── README.md          # 本文件
+├── .gitignore         # Git 忽略规则
+└── dist/
+    └── PinPrompt.exe  # 打包产物
+```
+
+## 🖥️ 系统要求
+
+- **Windows** 10/11（推荐）
+- Python 3.7+（开发环境）
+- PySide6 6.x + pyperclip
+
+## 🔧 技术栈
+
+- **UI 框架**：PySide6（Qt for Python）
+- **窗口置顶**：Windows API（SetWindowPos + ctypes），避免 Qt setWindowFlags 导致关闭按钮失效
+- **剪贴板**：pyperclip
+- **打包**：PyInstaller（单文件 + 无窗口模式）
+
+## 📝 开发日志
+
+- **v1** — tkinter 原型版本
+- **v2** — PySide6 重写，解决 tkinter Canvas 滚动性能问题；新增搜索功能；使用 Windows API 实现窗口置顶；Toast 提示替代弹窗；打包为单文件 exe

@@ -1,0 +1,4 @@
+[DEBUG] hwnd = 9505626, state = 2
+[DEBUG] remove topmost: current=256, new=256, result=256
+[DEBUG] hwnd = 9505626, state = 0
+[DEBUG] remove topmost: current=256, new=256, result=256
