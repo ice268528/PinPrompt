@@ -281,6 +281,13 @@ class PinPromptApp(QMainWindow):
         self.always_on_top_cb.stateChanged.connect(self.toggle_on_top)
         toolbar_layout.addWidget(self.always_on_top_cb)
         
+        # 搜索框
+        self.search_edit = QLineEdit()
+        self.search_edit.setPlaceholderText("🔍 搜索...")
+        self.search_edit.setFixedWidth(180)
+        self.search_edit.textChanged.connect(self.on_search_changed)
+        toolbar_layout.addWidget(self.search_edit)
+        
         toolbar_layout.addStretch()
         
         # Toast 提示标签
@@ -368,6 +375,10 @@ class PinPromptApp(QMainWindow):
             self.refresh_prompts()
             self.status_bar.showMessage(f"当前分类: {cat_name}")
     
+    def on_search_changed(self, text):
+        """搜索框内容变化"""
+        self.refresh_prompts()
+    
     def refresh_prompts(self):
         """刷新 Prompt 列表"""
         # 清空现有内容
@@ -381,8 +392,16 @@ class PinPromptApp(QMainWindow):
         
         prompts = self.data["categories"][self.current_category].get("prompts", [])
         
+        # 搜索过滤
+        search_text = self.search_edit.text().strip().lower()
+        
+        if search_text:
+            prompts = [p for p in prompts 
+                      if search_text in p.get("title", "").lower() 
+                      or search_text in p.get("content", "").lower()]
+        
         if not prompts:
-            empty_label = QLabel("暂无 Prompt，点击「新建 Prompt」添加")
+            empty_label = QLabel("暂无 Prompt" if not search_text else "没有匹配的搜索结果")
             empty_label.setFont(QFont("Microsoft YaHei", 10))
             empty_label.setStyleSheet("color: #999999; padding: 20px;")
             self.prompt_layout.addWidget(empty_label)
@@ -500,11 +519,20 @@ class PinPromptApp(QMainWindow):
     
     def toggle_on_top(self, state):
         """切换窗口置顶"""
+        # 保存当前位置和大小
+        geom = self.geometry()
+        
         if state == Qt.Checked:
             self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
         else:
             self.setWindowFlags(self.windowFlags() & ~Qt.WindowStaysOnTopHint)
+        
+        # 恢复位置和大小，并显示
+        self.setGeometry(geom)
         self.show()
+        self.raise_()
+        self.activateWindow()
+        
         status = "已置顶" if state == Qt.Checked else "取消置顶"
         self.status_bar.showMessage(status)
     
