@@ -25,9 +25,9 @@ if sys.platform == 'win32':
     
     user32 = ctypes.windll.user32
     
-    # SetWindowPos
+    # SetWindowPos - 7个参数
     SetWindowPos = user32.SetWindowPos
-    SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint]
+    SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint]
     SetWindowPos.restype = wintypes.BOOL
     
     # SetWindowLong - 用于添加/移除窗口扩展样式
