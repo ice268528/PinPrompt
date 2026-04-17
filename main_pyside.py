@@ -540,12 +540,15 @@ class PinPromptApp(QMainWindow):
     def toggle_on_top(self, state):
         """切换窗口置顶 - 使用 Windows API 强制置顶"""
         if sys.platform == 'win32':
-            hwnd = int(self.winId())
+            hwnd = ctypes.c_void_p(int(self.winId()))
             
             if state == Qt.Checked:
-                # 强制置顶
+                # 强制置顶 - 使用 SWP_NOACTIVATE 避免激活其他窗口
                 SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
                             SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
+                # 再次确保置顶
+                SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
+                            SWP_NOMOVE | SWP_NOSIZE)
                 self.status_bar.showMessage("已置顶")
             else:
                 # 取消置顶
