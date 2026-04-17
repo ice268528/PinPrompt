@@ -37,8 +37,9 @@ if sys.platform == 'win32':
     )
     SetWindowPos = prototype(('SetWindowPos', user32))
     
-    HWND_TOPMOST = -1
-    HWND_NOTOPMOST = -2
+    # 使用正确的 HWND 常量值
+    HWND_TOPMOST = ctypes.c_void_p(-1)  # 置顶
+    HWND_NOTOPMOST = ctypes.c_void_p(-2)  # 取消置顶
     SWP_NOMOVE = 0x0002
     SWP_NOSIZE = 0x0001
     SWP_SHOWWINDOW = 0x0040
@@ -221,6 +222,8 @@ class PinPromptApp(QMainWindow):
         self.data = self.load_data()
         self.current_category = None
         self.setup_ui()
+        # 启动时刷新分类列表
+        self.refresh_categories()
         
     def load_data(self):
         """加载数据"""
@@ -544,28 +547,16 @@ class PinPromptApp(QMainWindow):
     
     def toggle_on_top(self, state):
         """切换窗口置顶"""
-        if sys.platform == 'win32':
-            # 使用 Windows API 设置窗口置顶，避免 setWindowFlags 导致的问题
-            hwnd = self.winId().__int__()
-            
-            if state == Qt.Checked:
-                # 设置置顶
-                result = SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
-                                     SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
-                self.status_bar.showMessage(f"已置顶 (result={result})")
-            else:
-                # 取消置顶
-                result = SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
-                                     SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
-                self.status_bar.showMessage(f"取消置顶 (result={result})")
+        if state == Qt.Checked:
+            # 使用 Qt 原生方法设置窗口置顶
+            self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+            self.status_bar.showMessage("已置顶")
         else:
-            # 非 Windows 系统使用 Qt 方式
-            if state == Qt.Checked:
-                self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
-            else:
-                self.setWindowFlags(self.windowFlags() & ~Qt.WindowStaysOnTopHint)
-            self.show()
-            self.status_bar.showMessage("已置顶" if state == Qt.Checked else "取消置顶")
+            self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, False)
+            self.status_bar.showMessage("取消置顶")
+        
+        # 必须调用 show() 来应用窗口标志的更改
+        self.show()
     
     def show_toast(self, message, duration=1500):
         """显示 Toast 提示"""
