@@ -219,6 +219,11 @@ class PinPromptApp(QMainWindow):
         self.setWindowTitle("PinPrompt - Prompt管理工具")
         self.resize(900, 650)
         self.setMinimumSize(600, 400)
+
+        # 设置窗口图标
+        icon_path = os.path.join(DATA_DIR, "PinPrompt.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
         
         # 创建中心部件
         central_widget = QWidget()

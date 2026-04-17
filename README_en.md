@@ -1,4 +1,8 @@
-# PinPrompt - Prompt Classification Management Tool
+<p align="center">
+  <img src="PinPrompt.png" alt="PinPrompt" width="120" />
+</p>
+
+<h1 align="center">PinPrompt - Prompt Classification Management Tool</h1>
 
 A lightweight desktop Prompt management tool built with PySide6, supporting category storage, window always-on-top, one-click copy, and keyword search.
 
@@ -38,7 +42,7 @@ pip install PySide6 pyperclip
 
 ```bash
 conda activate PinPrompt
-python -m PyInstaller --noconfirm --onefile --windowed --name "PinPrompt" main_pyside.py
+python -m PyInstaller --noconfirm --onefile --windowed --icon "PinPrompt.ico" --name "PinPrompt" main_pyside.py
 ```
 
 Output: `dist/PinPrompt.exe` (~45MB).
@@ -85,6 +89,8 @@ Data is stored in `prompts.json` (already in .gitignore):
 ```
 PinPrompt/
 ├── main_pyside.py    # PySide6 main program
+├── PinPrompt.png      # Project icon
+├── PinPrompt.ico      # exe icon (Windows)
 ├── prompts.json      # Data file (auto-generated, not committed)
 ├── requirements.txt  # Dependencies
 ├── README.md         # This file (Chinese)

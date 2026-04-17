@@ -2,7 +2,11 @@
 
 ---
 
-# PinPrompt - Prompt 分类管理工具
+<p align="center">
+  <img src="PinPrompt.png" alt="PinPrompt" width="120" />
+</p>
+
+<h1 align="center">PinPrompt - Prompt 分类管理工具</h1>
 
 一个轻量级的桌面 Prompt 管理工具，使用 PySide6 构建，支持分类存储、窗口置顶、一键复制、关键词搜索。
 
@@ -42,7 +46,7 @@ pip install PySide6 pyperclip
 
 ```bash
 conda activate PinPrompt
-python -m PyInstaller --noconfirm --onefile --windowed --name "PinPrompt" main_pyside.py
+python -m PyInstaller --noconfirm --onefile --windowed --icon "PinPrompt.ico" --name "PinPrompt" main_pyside.py
 ```
 
 打包产物位于 `dist/PinPrompt.exe`（约 45MB）。
@@ -89,6 +93,8 @@ python -m PyInstaller --noconfirm --onefile --windowed --name "PinPrompt" main_p
 ```
 PinPrompt/
 ├── main_pyside.py    # PySide6 主程序
+├── PinPrompt.png      # 项目图标
+├── PinPrompt.ico      # exe 图标（Windows）
 ├── prompts.json       # 数据文件（自动生成，不提交）
 ├── requirements.txt   # 依赖清单
 ├── README.md          # 本文件（中文）
