@@ -548,15 +548,16 @@ class PinPromptApp(QMainWindow):
     def toggle_on_top(self, state):
         """切换窗口置顶"""
         if state == Qt.Checked:
-            # 使用 Qt 原生方法设置窗口置顶
             self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
             self.status_bar.showMessage("已置顶")
         else:
             self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, False)
             self.status_bar.showMessage("取消置顶")
         
-        # 必须调用 show() 来应用窗口标志的更改
+        # 应用窗口标志更改并提升窗口
         self.show()
+        self.raise_()
+        self.activateWindow()
     
     def show_toast(self, message, duration=1500):
         """显示 Toast 提示"""
