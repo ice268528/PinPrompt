@@ -35,6 +35,21 @@ if sys.platform == 'win32':
     SetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_long]
     SetWindowLongW.restype = ctypes.c_long
     
+    # GetWindowLong - 获取窗口样式
+    GetWindowLongW = user32.GetWindowLongW
+    GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
+    GetWindowLongW.restype = ctypes.c_long
+    
+    # GetWindowRect - 获取窗口位置和大小
+    class RECT(ctypes.Structure):
+        _fields_ = [("left", ctypes.c_long),
+                    ("top", ctypes.c_long),
+                    ("right", ctypes.c_long),
+                    ("bottom", ctypes.c_long)]
+    GetWindowRect = user32.GetWindowRect
+    GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(RECT)]
+    GetWindowRect.restype = ctypes.c_bool
+    
     GWL_EXSTYLE = -20
     WS_EX_TOPMOST = 0x00000008  # 置顶扩展样式
     SWP_NOMOVE = 0x0002
@@ -544,49 +559,73 @@ class PinPromptApp(QMainWindow):
             self.status_bar.showMessage("Prompt 已删除")
     
     def toggle_on_top(self, state):
-        """切换窗口置顶 - 直接使用 SetWindowPos"""
+        """切换窗口置顶 - 使用 SetWindowPos + SetWindowLong"""
         if sys.platform == 'win32':
-            hwnd = ctypes.c_void_p(int(self.winId()))
+            hwnd = int(self.winId())
             
             # 调试日志写入文件
             with open("debug_top.txt", "a", encoding="utf-8") as f:
-                f.write(f"[DEBUG] hwnd = {hwnd.value}, state = {state}\n")
+                f.write(f"[DEBUG] hwnd = {hwnd}, state = {state}\n")
             
             try:
                 if state == Qt.Checked:
-                    # 直接用 SetWindowPos 强制置顶
-                    result = SetWindowPos(hwnd, -1, 0, 0, 0, 0, 
-                                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOACTIVATE)
-                    with open("debug_top.txt", "a", encoding="utf-8") as f:
-                        f.write(f"[DEBUG] SetWindowPos result = {result}\n")
+                    # 方法1: 使用 SetWindowLong 添加 WS_EX_TOPMOST
+                    GWL_EXSTYLE = -20
+                    WS_EX_TOPMOST = 0x00000008
                     
-                    # 再次调用确保置顶
-                    result2 = SetWindowPos(hwnd, -1, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)
-                    with open("debug_top.txt", "a", encoding="utf-8") as f:
-                        f.write(f"[DEBUG] SetWindowPos again result = {result2}\n")
+                    # 获取当前扩展样式
+                    current_style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+                    f.write(f"[DEBUG] current extended style = {current_style}\n")
                     
-                    # 尝试 BringWindowToTop
-                    bring_result = user32.BringWindowToTop(hwnd)
-                    with open("debug_top.txt", "a", encoding="utf-8") as f:
-                        f.write(f"[DEBUG] BringWindowToTop result = {bring_result}\n")
+                    # 添加 WS_EX_TOPMOST
+                    new_style = current_style | WS_EX_TOPMOST
+                    result = user32.SetWindowLongW(hwnd, GWL_EXSTYLE, new_style)
+                    f.write(f"[DEBUG] SetWindowLong result = {result}, new_style = {new_style}\n")
                     
-                    # 尝试 SetForegroundWindow
-                    fg_result = user32.SetForegroundWindow(hwnd)
-                    with open("debug_top.txt", "a", encoding="utf-8") as f:
-                        f.write(f"[DEBUG] SetForegroundWindow result = {fg_result}\n")
+                    # 验证样式是否已添加
+                    verify_style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+                    f.write(f"[DEBUG] verify style after = {verify_style}\n")
+                    
+                    # 方法2: 使用 SetWindowPos 强制窗口到最前
+                    # 获取当前窗口位置和大小
+                    rect = ctypes.create_string_buffer(16)  # RECT = 4 ints
+                    user32.GetWindowRect(hwnd, ctypes.byref(rect))
+                    x, y, right, bottom = ctypes.unpack('iiii', rect.raw)
+                    cx, cy = right - x, bottom - y
+                    f.write(f"[DEBUG] window rect: x={x}, y={y}, cx={cx}, cy={cy}\n")
+                    
+                    # 使用正确的窗口尺寸调用 SetWindowPos
+                    SWP_NOMOVE = 0x0002
+                    SWP_NOSIZE = 0x0001
+                    result2 = user32.SetWindowPos(hwnd, -1, 0, 0, cx, cy, SWP_NOMOVE)
+                    f.write(f"[DEBUG] SetWindowPos result = {result2}\n")
+                    
+                    # 再次置顶确保生效
+                    user32.SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0)
+                    f.write(f"[DEBUG] SetWindowPos again called\n")
                     
                     self.status_bar.showMessage("已置顶")
                 else:
-                    # 取消置顶 -2 = HWND_NOTOPMOST
-                    result = SetWindowPos(hwnd, -2, 0, 0, 0, 0,
-                                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOACTIVATE)
+                    # 取消置顶
+                    GWL_EXSTYLE = -20
+                    WS_EX_TOPMOST = 0x00000008
+                    
+                    current_style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+                    new_style = current_style & ~WS_EX_TOPMOST
+                    result = user32.SetWindowLongW(hwnd, GWL_EXSTYLE, new_style)
+                    
                     with open("debug_top.txt", "a", encoding="utf-8") as f:
-                        f.write(f"[DEBUG] SetWindowPos result = {result}\n")
+                        f.write(f"[DEBUG] remove topmost: current={current_style}, new={new_style}, result={result}\n")
+                    
+                    user32.SetWindowPos(hwnd, -2, 0, 0, 0, 0, 0)  # -2 = HWND_NOTOPMOST
                     
                     self.status_bar.showMessage("取消置顶")
             except Exception as e:
                 with open("debug_top.txt", "a", encoding="utf-8") as f:
                     f.write(f"[DEBUG] Exception: {e}\n")
+                import traceback
+                with open("debug_top.txt", "a", encoding="utf-8") as f:
+                    f.write(traceback.format_exc())
         else:
             # 非 Windows 系统使用 Qt 方式
             if state == Qt.Checked:
