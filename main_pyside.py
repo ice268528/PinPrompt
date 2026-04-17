@@ -25,16 +25,22 @@ if sys.platform == 'win32':
     
     user32 = ctypes.windll.user32
     
-    # 定义 SetWindowPos 函数
+    # SetWindowPos
     SetWindowPos = user32.SetWindowPos
     SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint]
     SetWindowPos.restype = wintypes.BOOL
     
-    HWND_TOPMOST = -1
-    HWND_NOTOPMOST = -2
+    # SetWindowLong - 用于添加/移除窗口扩展样式
+    SetWindowLongW = user32.SetWindowLongW
+    SetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_long]
+    SetWindowLongW.restype = ctypes.c_long
+    
+    GWL_EXSTYLE = -20
+    WS_EX_TOPMOST = 0x00000008  # 置顶扩展样式
     SWP_NOMOVE = 0x0002
     SWP_NOSIZE = 0x0001
     SWP_SHOWWINDOW = 0x0040
+    SWP_NOACTIVATE = 0x0010
 
 # 数据文件路径（exe 打包时放在 exe 同级目录，开发时放在脚本目录）
 if getattr(sys, 'frozen', False):
@@ -538,22 +544,27 @@ class PinPromptApp(QMainWindow):
             self.status_bar.showMessage("Prompt 已删除")
     
     def toggle_on_top(self, state):
-        """切换窗口置顶 - 使用 Windows API 强制置顶"""
+        """切换窗口置顶 - 使用 SetWindowLong 添加扩展样式"""
         if sys.platform == 'win32':
             hwnd = ctypes.c_void_p(int(self.winId()))
             
             if state == Qt.Checked:
-                # 强制置顶 - 使用 SWP_NOACTIVATE 避免激活其他窗口
-                SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
-                            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
-                # 再次确保置顶
-                SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
-                            SWP_NOMOVE | SWP_NOSIZE)
+                # 方法1: 添加 WS_EX_TOPMOST 扩展样式
+                current_style = SetWindowLongW(hwnd, GWL_EXSTYLE, 0)
+                SetWindowLongW(hwnd, GWL_EXSTYLE, current_style | WS_EX_TOPMOST)
+                
+                # 方法2: 同时使用 SetWindowPos 确保置顶
+                SetWindowPos(hwnd, -1, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+                
                 self.status_bar.showMessage("已置顶")
             else:
+                # 移除 WS_EX_TOPMOST 扩展样式
+                current_style = SetWindowLongW(hwnd, GWL_EXSTYLE, 0)
+                SetWindowLongW(hwnd, GWL_EXSTYLE, current_style & ~WS_EX_TOPMOST)
+                
                 # 取消置顶
-                SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
-                            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
+                SetWindowPos(hwnd, -2, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+                
                 self.status_bar.showMessage("取消置顶")
         else:
             # 非 Windows 系统使用 Qt 方式
