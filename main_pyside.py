@@ -544,43 +544,39 @@ class PinPromptApp(QMainWindow):
             self.status_bar.showMessage("Prompt 已删除")
     
     def toggle_on_top(self, state):
-        """切换窗口置顶 - 使用 SetWindowLong 添加扩展样式"""
+        """切换窗口置顶 - 直接使用 SetWindowPos"""
         if sys.platform == 'win32':
-            hwnd = int(self.winId())
-            hwnd_void = ctypes.c_void_p(hwnd)
+            hwnd = ctypes.c_void_p(int(self.winId()))
             
             # 调试日志写入文件
             with open("debug_top.txt", "a", encoding="utf-8") as f:
-                f.write(f"[DEBUG] hwnd = {hwnd}\n")
+                f.write(f"[DEBUG] hwnd = {hwnd.value}\n")
             
             if state == Qt.Checked:
-                # 方法1: 添加 WS_EX_TOPMOST 扩展样式
-                current_style = SetWindowLongW(hwnd_void, GWL_EXSTYLE, 0)
+                # 直接用 SetWindowPos 强制置顶
+                # -1 = HWND_TOPMOST
+                result = SetWindowPos(hwnd, -1, 0, 0, 0, 0, 
+                            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOACTIVATE)
                 with open("debug_top.txt", "a", encoding="utf-8") as f:
-                    f.write(f"[DEBUG] current_style = {current_style}\n")
-                result = SetWindowLongW(hwnd_void, GWL_EXSTYLE, current_style | WS_EX_TOPMOST)
-                with open("debug_top.txt", "a", encoding="utf-8") as f:
-                    f.write(f"[DEBUG] SetWindowLong result = {result}\n")
+                    f.write(f"[DEBUG] SetWindowPos result = {result}\n")
                 
-                # 方法2: 同时使用 SetWindowPos 确保置顶
-                result2 = SetWindowPos(hwnd_void, -1, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+                # 再次调用确保置顶
+                result2 = SetWindowPos(hwnd, -1, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)
                 with open("debug_top.txt", "a", encoding="utf-8") as f:
-                    f.write(f"[DEBUG] SetWindowPos result = {result2}\n")
+                    f.write(f"[DEBUG] SetWindowPos again result = {result2}\n")
+                
+                # 尝试 BringWindowToTop
+                user32.BringWindowToTop(hwnd)
+                with open("debug_top.txt", "a", encoding="utf-8") as f:
+                    f.write(f"[DEBUG] BringWindowToTop called\n")
                 
                 self.status_bar.showMessage("已置顶")
             else:
-                # 移除 WS_EX_TOPMOST 扩展样式
-                current_style = SetWindowLongW(hwnd_void, GWL_EXSTYLE, 0)
+                # 取消置顶 -2 = HWND_NOTOPMOST
+                result = SetWindowPos(hwnd, -2, 0, 0, 0, 0,
+                            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOACTIVATE)
                 with open("debug_top.txt", "a", encoding="utf-8") as f:
-                    f.write(f"[DEBUG] current_style = {current_style}\n")
-                result = SetWindowLongW(hwnd_void, GWL_EXSTYLE, current_style & ~WS_EX_TOPMOST)
-                with open("debug_top.txt", "a", encoding="utf-8") as f:
-                    f.write(f"[DEBUG] SetWindowLong result = {result}\n")
-                
-                # 取消置顶
-                result2 = SetWindowPos(hwnd_void, -2, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
-                with open("debug_top.txt", "a", encoding="utf-8") as f:
-                    f.write(f"[DEBUG] SetWindowPos result = {result2}\n")
+                    f.write(f"[DEBUG] SetWindowPos result = {result}\n")
                 
                 self.status_bar.showMessage("取消置顶")
         else:
