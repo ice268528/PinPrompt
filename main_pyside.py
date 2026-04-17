@@ -18,45 +18,6 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QIcon, QKeySequence, QShortcut
 import pyperclip
 
-# Windows API 用于窗口置顶
-if sys.platform == 'win32':
-    import ctypes
-    from ctypes import wintypes
-    
-    user32 = ctypes.windll.user32
-    
-    # SetWindowPos - 7个参数
-    SetWindowPos = user32.SetWindowPos
-    SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint]
-    SetWindowPos.restype = wintypes.BOOL
-    
-    # SetWindowLong - 用于添加/移除窗口扩展样式
-    SetWindowLongW = user32.SetWindowLongW
-    SetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_long]
-    SetWindowLongW.restype = ctypes.c_long
-    
-    # GetWindowLong - 获取窗口样式
-    GetWindowLongW = user32.GetWindowLongW
-    GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
-    GetWindowLongW.restype = ctypes.c_long
-    
-    # GetWindowRect - 获取窗口位置和大小
-    class RECT(ctypes.Structure):
-        _fields_ = [("left", ctypes.c_long),
-                    ("top", ctypes.c_long),
-                    ("right", ctypes.c_long),
-                    ("bottom", ctypes.c_long)]
-    GetWindowRect = user32.GetWindowRect
-    GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(RECT)]
-    GetWindowRect.restype = ctypes.c_bool
-    
-    GWL_EXSTYLE = -20
-    WS_EX_TOPMOST = 0x00000008  # 置顶扩展样式
-    SWP_NOMOVE = 0x0002
-    SWP_NOSIZE = 0x0001
-    SWP_SHOWWINDOW = 0x0040
-    SWP_NOACTIVATE = 0x0010
-
 # 数据文件路径（exe 打包时放在 exe 同级目录，开发时放在脚本目录）
 if getattr(sys, 'frozen', False):
     DATA_DIR = os.path.dirname(sys.executable)
@@ -559,80 +520,23 @@ class PinPromptApp(QMainWindow):
             self.status_bar.showMessage("Prompt 已删除")
     
     def toggle_on_top(self, state):
-        """切换窗口置顶 - 使用 SetWindowPos + SetWindowLong"""
-        if sys.platform == 'win32':
-            hwnd = int(self.winId())
-            
-            # 调试日志写入文件
-            with open("debug_top.txt", "a", encoding="utf-8") as f:
-                f.write(f"[DEBUG] hwnd = {hwnd}, state = {state}\n")
-            
-            try:
-                if state == Qt.Checked:
-                    # 方法1: 使用 SetWindowLong 添加 WS_EX_TOPMOST
-                    GWL_EXSTYLE = -20
-                    WS_EX_TOPMOST = 0x00000008
-                    
-                    # 获取当前扩展样式
-                    current_style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-                    f.write(f"[DEBUG] current extended style = {current_style}\n")
-                    
-                    # 添加 WS_EX_TOPMOST
-                    new_style = current_style | WS_EX_TOPMOST
-                    result = user32.SetWindowLongW(hwnd, GWL_EXSTYLE, new_style)
-                    f.write(f"[DEBUG] SetWindowLong result = {result}, new_style = {new_style}\n")
-                    
-                    # 验证样式是否已添加
-                    verify_style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-                    f.write(f"[DEBUG] verify style after = {verify_style}\n")
-                    
-                    # 方法2: 使用 SetWindowPos 强制窗口到最前
-                    # 获取当前窗口位置和大小
-                    rect = ctypes.create_string_buffer(16)  # RECT = 4 ints
-                    user32.GetWindowRect(hwnd, ctypes.byref(rect))
-                    x, y, right, bottom = ctypes.unpack('iiii', rect.raw)
-                    cx, cy = right - x, bottom - y
-                    f.write(f"[DEBUG] window rect: x={x}, y={y}, cx={cx}, cy={cy}\n")
-                    
-                    # 使用正确的窗口尺寸调用 SetWindowPos
-                    SWP_NOMOVE = 0x0002
-                    SWP_NOSIZE = 0x0001
-                    result2 = user32.SetWindowPos(hwnd, -1, 0, 0, cx, cy, SWP_NOMOVE)
-                    f.write(f"[DEBUG] SetWindowPos result = {result2}\n")
-                    
-                    # 再次置顶确保生效
-                    user32.SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0)
-                    f.write(f"[DEBUG] SetWindowPos again called\n")
-                    
-                    self.status_bar.showMessage("已置顶")
-                else:
-                    # 取消置顶
-                    GWL_EXSTYLE = -20
-                    WS_EX_TOPMOST = 0x00000008
-                    
-                    current_style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-                    new_style = current_style & ~WS_EX_TOPMOST
-                    result = user32.SetWindowLongW(hwnd, GWL_EXSTYLE, new_style)
-                    
-                    with open("debug_top.txt", "a", encoding="utf-8") as f:
-                        f.write(f"[DEBUG] remove topmost: current={current_style}, new={new_style}, result={result}\n")
-                    
-                    user32.SetWindowPos(hwnd, -2, 0, 0, 0, 0, 0)  # -2 = HWND_NOTOPMOST
-                    
-                    self.status_bar.showMessage("取消置顶")
-            except Exception as e:
-                with open("debug_top.txt", "a", encoding="utf-8") as f:
-                    f.write(f"[DEBUG] Exception: {e}\n")
-                import traceback
-                with open("debug_top.txt", "a", encoding="utf-8") as f:
-                    f.write(traceback.format_exc())
+        """切换窗口置顶"""
+        # 保存当前窗口位置和大小
+        geo = self.geometry()
+        
+        if state == Qt.Checked:
+            self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+            self.status_bar.showMessage("已置顶")
         else:
-            # 非 Windows 系统使用 Qt 方式
-            if state == Qt.Checked:
-                self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
-            else:
-                self.setWindowFlags(self.windowFlags() & ~Qt.WindowStaysOnTopHint)
-            self.show()
+            self.setWindowFlag(Qt.WindowStaysOnTopHint, False)
+            self.status_bar.showMessage("取消置顶")
+        
+        # setWindowFlag 后必须重新 show 才能生效
+        self.show()
+        # 恢复窗口位置（show 可能导致位置变化）
+        self.setGeometry(geo)
+        self.raise_()
+        self.activateWindow()
     
     def show_toast(self, message, duration=1500):
         """显示 Toast 提示"""
