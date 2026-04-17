@@ -520,37 +520,80 @@ class PinPromptApp(QMainWindow):
             self.status_bar.showMessage("Prompt 已删除")
     
     def toggle_on_top(self, state):
-        """切换窗口置顶 - 使用 Windows API 强制置顶"""
-        import ctypes
-        from ctypes import wintypes
-        
-        user32 = ctypes.windll.user32
-        
-        SWP_NOSIZE = 0x0001
-        SWP_NOMOVE = 0x0002
-        SWP_SHOWWINDOW = 0x0040
-        HWND_TOPMOST = wintypes.HWND(-1)
-        HWND_NOTOPMOST = wintypes.HWND(-2)
-        
-        hwnd = wintypes.HWND(self.winId())
-        
-        if state == Qt.Checked:
-            # 先设置扩展样式添加 TOPMOST
-            ex_style = user32.GetWindowLongW(hwnd, -20)  # GWL_EXSTYLE
-            user32.SetWindowLongW(hwnd, -20, ex_style | 8)  # 8 = WS_EX_TOPMOST
-            # 然后用 SetWindowPos 确保生效
-            user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
-                              SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
-            user32.BringWindowToTop(hwnd)
-            self.status_bar.showMessage("已置顶")
-        else:
-            # 移除 TOPMOST
-            ex_style = user32.GetWindowLongW(hwnd, -20)
-            user32.SetWindowLongW(hwnd, -20, ex_style & ~8)
-            user32.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
-                              SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
-            self.status_bar.showMessage("取消置顶")
-        
+        """切换窗口置顶 - 优先使用 Qt flags，并提供 WinAPI 回退，已移除调试日志"""
+        # 兼容 state 既可能是 int（stateChanged）也可能是 bool（toggled）
+        try:
+            checked = (state == Qt.Checked) or bool(state)
+        except Exception:
+            checked = bool(state)
+
+        # 使用 setWindowFlags 更新 flags，保留系统按钮
+        try:
+            flags = self.windowFlags()
+            if checked:
+                flags |= Qt.WindowStaysOnTopHint
+                flags |= (Qt.WindowCloseButtonHint | Qt.WindowSystemMenuHint | Qt.WindowMinimizeButtonHint | Qt.WindowMaximizeButtonHint)
+            else:
+                flags &= ~Qt.WindowStaysOnTopHint
+                flags |= (Qt.WindowCloseButtonHint | Qt.WindowSystemMenuHint)
+
+            self.setWindowFlags(flags)
+            self.show()
+            self.raise_()
+            self.activateWindow()
+        except Exception:
+            # 忽略 UI 修改错误，继续尝试 WinAPI 回退
+            pass
+
+        # WinAPI 回退（兼容 32/64 位）
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            user32 = ctypes.windll.user32
+
+            SetWindowPos = user32.SetWindowPos
+            SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND,
+                                     ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                                     ctypes.c_uint]
+            SetWindowPos.restype = wintypes.BOOL
+
+            SetForegroundWindow = user32.SetForegroundWindow
+            SetForegroundWindow.argtypes = [wintypes.HWND]
+            SetForegroundWindow.restype = wintypes.BOOL
+
+            BringWindowToTop = user32.BringWindowToTop
+            BringWindowToTop.argtypes = [wintypes.HWND]
+            BringWindowToTop.restype = wintypes.BOOL
+
+            SWP_NOSIZE = 0x0001
+            SWP_NOMOVE = 0x0002
+            SWP_SHOWWINDOW = 0x0040
+            SWP_FRAMECHANGED = 0x0020
+            HWND_TOPMOST = wintypes.HWND(-1)
+            HWND_NOTOPMOST = wintypes.HWND(-2)
+
+            hwnd = wintypes.HWND(int(self.winId()))
+
+            if checked:
+                SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
+            else:
+                SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
+
+            # 尝试刷新框架并置前
+            try:
+                SetWindowPos(hwnd, HWND_TOPMOST if checked else HWND_NOTOPMOST, 0, 0, 0, 0,
+                             SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED | SWP_SHOWWINDOW)
+                BringWindowToTop(hwnd)
+                SetForegroundWindow(hwnd)
+            except Exception:
+                pass
+
+            self.status_bar.showMessage("已置顶" if checked else "取消置顶")
+        except Exception:
+            self.status_bar.showMessage("已置顶" if checked else "取消置顶")
+
+        # 确保激活
         self.raise_()
         self.activateWindow()
     
