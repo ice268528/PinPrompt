@@ -1,3 +1,4 @@
 Set objShell = CreateObject("WScript.Shell")
-objShell.CurrentDirectory = CreateObject("Scripting.FileSystemObject").GetParentFolderName(WScript.ScriptFullName)
-objShell.Run "pythonw main_pyside.py", 0, False
+Set objFSO = CreateObject("Scripting.FileSystemObject")
+objShell.CurrentDirectory = objFSO.GetParentFolderName(WScript.ScriptFullName)
+objShell.Run "cmd /c ""E:\SomeApps\miniconda\python.exe"" main_pyside.py", 0, False

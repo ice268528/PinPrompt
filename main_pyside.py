@@ -15,11 +15,15 @@ from PySide6.QtWidgets import (
     QFrame, QSplitter, QMessageBox, QStatusBar
 )
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont, QIcon
+from PySide6.QtGui import QFont, QIcon, QKeySequence, QShortcut
 import pyperclip
 
-# 数据文件路径
-DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prompts.json")
+# 数据文件路径（exe 打包时放在 exe 同级目录，开发时放在脚本目录）
+if getattr(sys, 'frozen', False):
+    DATA_DIR = os.path.dirname(sys.executable)
+else:
+    DATA_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_FILE = os.path.join(DATA_DIR, "prompts.json")
 
 
 class PromptCard(QFrame):
@@ -170,7 +174,10 @@ class AddEditDialog(QDialog):
         
         layout.addWidget(button_box)
         
-        # 快捷键
+        # Ctrl+S 快捷键
+        save_shortcut = QShortcut(QKeySequence("Ctrl+S"), self)
+        save_shortcut.activated.connect(self.accept)
+        
         self.setWindowTitle("编辑 Prompt" if self.is_edit else "新建 Prompt")
         
     def get_data(self):
@@ -208,7 +215,7 @@ class PinPromptApp(QMainWindow):
     def setup_ui(self):
         """设置UI"""
         self.setWindowTitle("PinPrompt - Prompt管理工具")
-        self.setGeometry(100, 100, 900, 650)
+        self.resize(900, 650)
         self.setMinimumSize(600, 400)
         
         # 创建中心部件
@@ -519,7 +526,15 @@ def main():
     app.setFont(font)
     
     window = PinPromptApp()
+    # 居中显示
+    screen = app.primaryScreen().geometry()
+    window.move(
+        (screen.width() - window.width()) // 2,
+        (screen.height() - window.height()) // 2
+    )
     window.show()
+    window.raise_()
+    window.activateWindow()
     
     sys.exit(app.exec())
 
