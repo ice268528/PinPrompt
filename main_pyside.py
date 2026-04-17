@@ -21,7 +21,22 @@ import pyperclip
 # Windows API 用于窗口置顶
 if sys.platform == 'win32':
     import ctypes
+    
     user32 = ctypes.windll.user32
+    
+    # 定义 SetWindowPos 函数原型
+    prototype = ctypes.WINFUNCTYPE(
+        ctypes.c_bool,      # 返回类型
+        ctypes.c_void_p,    # hWnd
+        ctypes.c_void_p,    # hWndInsertAfter
+        ctypes.c_int,       # X
+        ctypes.c_int,       # Y
+        ctypes.c_int,       # cx
+        ctypes.c_int,       # cy
+        ctypes.c_uint       # uFlags
+    )
+    SetWindowPos = prototype(('SetWindowPos', user32))
+    
     HWND_TOPMOST = -1
     HWND_NOTOPMOST = -2
     SWP_NOMOVE = 0x0002
@@ -531,17 +546,18 @@ class PinPromptApp(QMainWindow):
         """切换窗口置顶"""
         if sys.platform == 'win32':
             # 使用 Windows API 设置窗口置顶，避免 setWindowFlags 导致的问题
-            hwnd = int(self.winId())
+            hwnd = self.winId().__int__()
+            
             if state == Qt.Checked:
                 # 设置置顶
-                user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
-                                   SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
-                self.status_bar.showMessage("已置顶")
+                result = SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
+                                     SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
+                self.status_bar.showMessage(f"已置顶 (result={result})")
             else:
                 # 取消置顶
-                user32.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
-                                   SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
-                self.status_bar.showMessage("取消置顶")
+                result = SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
+                                     SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
+                self.status_bar.showMessage(f"取消置顶 (result={result})")
         else:
             # 非 Windows 系统使用 Qt 方式
             if state == Qt.Checked:
