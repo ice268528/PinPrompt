@@ -11,23 +11,14 @@
 - **编辑删除** — 支持 Prompt 的编辑和删除，记录创建/修改时间
 - **数据持久化** — 数据保存在本地 JSON 文件中，exe 和开发环境均可正确读写
 - **快捷操作** — 编辑弹窗内支持 Ctrl+S 快速保存
-- **无黑框启动** — 通过 VBS 脚本启动，无命令行窗口
 
 ## 🚀 快速启动
 
-### 方式一：双击 exe（推荐）
+### 下载 exe（推荐）
 
-直接运行 `dist/PinPrompt.exe`，无需安装 Python。
+前往 [GitHub Releases](https://github.com/ice268528/PinPrompt/releases) 下载最新版本的 `PinPrompt.exe`，双击即可运行，无需安装 Python。
 
-### 方式二：VBS 无黑框启动
-
-```bash
-双击 start.vbs
-```
-
-> 💡 建议右键 `start.vbs` → 发送到 → 桌面快捷方式
-
-### 方式三：命令行启动
+### 命令行启动
 
 ```bash
 # 激活 PinPrompt conda 环境
@@ -94,13 +85,10 @@ python -m PyInstaller --noconfirm --onefile --windowed --name "PinPrompt" main_p
 ```
 PinPrompt/
 ├── main_pyside.py    # PySide6 主程序
-├── start.vbs          # 无黑框启动脚本
-├── prompts.json       # 数据文件（自动生成，不提交）
-├── requirements.txt   # 依赖清单
-├── README.md          # 本文件
-├── .gitignore         # Git 忽略规则
-└── dist/
-    └── PinPrompt.exe  # 打包产物
+├── prompts.json      # 数据文件（自动生成，不提交）
+├── requirements.txt  # 依赖清单
+├── README.md         # 本文件
+└── .gitignore        # Git 忽略规则
 ```
 
 ## 🖥️ 系统要求
