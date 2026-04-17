@@ -546,24 +546,33 @@ class PinPromptApp(QMainWindow):
     def toggle_on_top(self, state):
         """切换窗口置顶 - 使用 SetWindowLong 添加扩展样式"""
         if sys.platform == 'win32':
-            hwnd = ctypes.c_void_p(int(self.winId()))
+            hwnd = int(self.winId())
+            hwnd_void = ctypes.c_void_p(hwnd)
+            
+            print(f"[DEBUG] hwnd = {hwnd}")  # 调试输出
             
             if state == Qt.Checked:
                 # 方法1: 添加 WS_EX_TOPMOST 扩展样式
-                current_style = SetWindowLongW(hwnd, GWL_EXSTYLE, 0)
-                SetWindowLongW(hwnd, GWL_EXSTYLE, current_style | WS_EX_TOPMOST)
+                current_style = SetWindowLongW(hwnd_void, GWL_EXSTYLE, 0)
+                print(f"[DEBUG] current_style = {current_style}")  # 调试
+                result = SetWindowLongW(hwnd_void, GWL_EXSTYLE, current_style | WS_EX_TOPMOST)
+                print(f"[DEBUG] SetWindowLong result = {result}")  # 调试
                 
                 # 方法2: 同时使用 SetWindowPos 确保置顶
-                SetWindowPos(hwnd, -1, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+                result2 = SetWindowPos(hwnd_void, -1, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+                print(f"[DEBUG] SetWindowPos result = {result2}")  # 调试
                 
                 self.status_bar.showMessage("已置顶")
             else:
                 # 移除 WS_EX_TOPMOST 扩展样式
-                current_style = SetWindowLongW(hwnd, GWL_EXSTYLE, 0)
-                SetWindowLongW(hwnd, GWL_EXSTYLE, current_style & ~WS_EX_TOPMOST)
+                current_style = SetWindowLongW(hwnd_void, GWL_EXSTYLE, 0)
+                print(f"[DEBUG] current_style = {current_style}")  # 调试
+                result = SetWindowLongW(hwnd_void, GWL_EXSTYLE, current_style & ~WS_EX_TOPMOST)
+                print(f"[DEBUG] SetWindowLong result = {result}")  # 调试
                 
                 # 取消置顶
-                SetWindowPos(hwnd, -2, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+                result2 = SetWindowPos(hwnd_void, -2, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+                print(f"[DEBUG] SetWindowPos result = {result2}")  # 调试
                 
                 self.status_bar.showMessage("取消置顶")
         else:
