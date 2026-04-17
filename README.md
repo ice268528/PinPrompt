@@ -1,3 +1,7 @@
+[English](README_en.md) | [中文](README.md)
+
+---
+
 # PinPrompt - Prompt 分类管理工具
 
 一个轻量级的桌面 Prompt 管理工具，使用 PySide6 构建，支持分类存储、窗口置顶、一键复制、关键词搜索。
@@ -85,10 +89,11 @@ python -m PyInstaller --noconfirm --onefile --windowed --name "PinPrompt" main_p
 ```
 PinPrompt/
 ├── main_pyside.py    # PySide6 主程序
-├── prompts.json      # 数据文件（自动生成，不提交）
-├── requirements.txt  # 依赖清单
-├── README.md         # 本文件
-└── .gitignore        # Git 忽略规则
+├── prompts.json       # 数据文件（自动生成，不提交）
+├── requirements.txt   # 依赖清单
+├── README.md          # 本文件（中文）
+├── README_en.md       # 英文版本
+└── .gitignore         # Git 忽略规则
 ```
 
 ## 🖥️ 系统要求
