@@ -520,21 +520,37 @@ class PinPromptApp(QMainWindow):
             self.status_bar.showMessage("Prompt 已删除")
     
     def toggle_on_top(self, state):
-        """切换窗口置顶"""
-        # 保存当前窗口位置和大小
-        geo = self.geometry()
+        """切换窗口置顶 - 使用 Windows API 强制置顶"""
+        import ctypes
+        from ctypes import wintypes
+        
+        user32 = ctypes.windll.user32
+        
+        SWP_NOSIZE = 0x0001
+        SWP_NOMOVE = 0x0002
+        SWP_SHOWWINDOW = 0x0040
+        HWND_TOPMOST = wintypes.HWND(-1)
+        HWND_NOTOPMOST = wintypes.HWND(-2)
+        
+        hwnd = wintypes.HWND(self.winId())
         
         if state == Qt.Checked:
-            self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+            # 先设置扩展样式添加 TOPMOST
+            ex_style = user32.GetWindowLongW(hwnd, -20)  # GWL_EXSTYLE
+            user32.SetWindowLongW(hwnd, -20, ex_style | 8)  # 8 = WS_EX_TOPMOST
+            # 然后用 SetWindowPos 确保生效
+            user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
+                              SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
+            user32.BringWindowToTop(hwnd)
             self.status_bar.showMessage("已置顶")
         else:
-            self.setWindowFlag(Qt.WindowStaysOnTopHint, False)
+            # 移除 TOPMOST
+            ex_style = user32.GetWindowLongW(hwnd, -20)
+            user32.SetWindowLongW(hwnd, -20, ex_style & ~8)
+            user32.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
+                              SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
             self.status_bar.showMessage("取消置顶")
         
-        # setWindowFlag 后必须重新 show 才能生效
-        self.show()
-        # 恢复窗口位置（show 可能导致位置变化）
-        self.setGeometry(geo)
         self.raise_()
         self.activateWindow()
     
