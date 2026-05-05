@@ -30,3 +30,38 @@ def migrate_v1_to_v2(data):
             "children": []
         })
     return {"version": 2, "categories": new_cats, "trash": []}
+
+
+def find_node_by_path(categories, path):
+    """沿 path 在 categories 列表中逐层查找节点。
+
+    categories: 顶层 list[dict]
+    path: list[str]，如 ["工作", "编程助手"]
+    返回: 找到的节点 dict，或 None
+    """
+    if not path:
+        return None
+    current_list = categories
+    node = None
+    for name in path:
+        node = next((c for c in current_list if c["name"] == name), None)
+        if node is None:
+            return None
+        current_list = node.get("children", [])
+    return node
+
+
+def is_name_unique_among_siblings(siblings, name, exclude=None):
+    """检查 name 在 siblings 列表中是否唯一。
+
+    siblings: list[dict]，同级分类列表
+    name: str，待检查的名字
+    exclude: dict 或 None，重命名场景下需要排除的当前节点
+    返回: bool
+    """
+    for node in siblings:
+        if node is exclude:
+            continue
+        if node["name"] == name:
+            return False
+    return True
