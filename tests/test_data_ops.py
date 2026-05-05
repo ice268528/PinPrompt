@@ -276,3 +276,67 @@ def test_restore_reuses_existing_same_name_in_path():
     restored, rebuilt, renamed = restore_trash_entry(cats, entry)
     assert rebuilt == 1  # 只重建了"编程"，"工作"被复用
     assert len(cats) == 1  # 顶层仍只有一个"工作"
+
+
+from data_ops import is_drop_valid
+
+
+def _make_node(name, role="top", has_children=False):
+    return {"name": name, "role": role, "has_children": has_children}
+
+
+def test_drop_top_leaf_between_top_levels():
+    src = _make_node("A", role="top", has_children=False)
+    tgt = _make_node("B", role="top")
+    assert is_drop_valid(src, tgt, "between") == (True, "")
+
+
+def test_drop_top_leaf_onto_top_becomes_child():
+    src = _make_node("A", role="top", has_children=False)
+    tgt = _make_node("B", role="top")
+    assert is_drop_valid(src, tgt, "on") == (True, "")
+
+
+def test_drop_child_to_top_level():
+    src = _make_node("A", role="child")
+    tgt = _make_node("B", role="top")
+    assert is_drop_valid(src, tgt, "between") == (True, "")
+
+
+def test_drop_parent_with_children_onto_other_top_rejected():
+    # 把已有子分类的父分类拖到另一个分类身上 → 会形成 3 层，禁止
+    src = _make_node("A", role="top", has_children=True)
+    tgt = _make_node("B", role="top")
+    ok, reason = is_drop_valid(src, tgt, "on")
+    assert ok is False
+    assert "2 层" in reason
+
+
+def test_drop_anything_onto_trash_rejected():
+    src = _make_node("A", role="top")
+    tgt = _make_node("回收站", role="trash")
+    ok, reason = is_drop_valid(src, tgt, "on")
+    assert ok is False
+    assert "右键菜单" in reason
+
+
+def test_drop_anything_between_around_trash_rejected():
+    src = _make_node("A", role="top")
+    tgt = _make_node("回收站", role="trash")
+    ok, reason = is_drop_valid(src, tgt, "between")
+    assert ok is False
+
+
+def test_drag_trash_node_rejected():
+    src = _make_node("回收站", role="trash")
+    tgt = _make_node("B", role="top")
+    ok, _ = is_drop_valid(src, tgt, "between")
+    assert ok is False
+
+
+def test_drag_separator_rejected():
+    src = _make_node("---", role="separator")
+    tgt = _make_node("B", role="top")
+    ok, _ = is_drop_valid(src, tgt, "between")
+    assert ok is False
+

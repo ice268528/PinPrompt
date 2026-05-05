@@ -136,3 +136,23 @@ def restore_trash_entry(categories, entry):
 
     target_list.append(payload)
     return payload, rebuilt_count, renamed
+
+
+def is_drop_valid(source, target, position):
+    """校验拖拽是否合法。
+
+    source / target: dict，至少含 "role" ∈ {"top","child","trash","separator"} 和 "has_children"（仅 source 用）
+    position: "between" | "on"
+    返回: (allowed: bool, reason: str)
+        allowed=False 时 reason 是状态栏提示文案
+    """
+    if source.get("role") in ("trash", "separator"):
+        return False, "该节点不可拖动"
+    if target.get("role") in ("trash", "separator"):
+        if target.get("role") == "trash":
+            return False, "如需删除请用右键菜单"
+        return False, "目标位置不可放置"
+    # 已有 children 的父分类不能再被拖到其他分类身上（会形成 3 层）
+    if position == "on" and source.get("has_children"):
+        return False, "最多支持 2 层嵌套"
+    return True, ""
