@@ -65,3 +65,74 @@ def is_name_unique_among_siblings(siblings, name, exclude=None):
         if node["name"] == name:
             return False
     return True
+
+
+def next_trash_id(trash):
+    """计算下一个可用的 trash 条目 id。空列表返回 1，否则返回 max(id)+1。"""
+    if not trash:
+        return 1
+    return max(t["id"] for t in trash) + 1
+
+
+def ensure_path(categories, path):
+    """沿 path 在 categories 中逐层走，缺失节点自动创建空分类。
+
+    categories: 顶层 list[dict]（会被原地修改）
+    path: list[str]，至少长度 1
+    返回: (末端节点, 重建的节点数)
+
+    用于回收站恢复时的路径重建。
+    """
+    if not path:
+        raise ValueError("ensure_path 不接受空路径")
+    current_list = categories
+    parent = None
+    rebuilt_count = 0
+    for name in path:
+        node = next((c for c in current_list if c["name"] == name), None)
+        if node is None:
+            node = {"name": name, "prompts": [], "expanded": False, "children": []}
+            current_list.append(node)
+            rebuilt_count += 1
+        current_list = node["children"]
+        parent = node
+    return parent, rebuilt_count
+
+
+def restore_trash_entry(categories, entry):
+    """根据 entry 把回收站项恢复到 categories。沿 origin_path 自动重建缺失节点。
+
+    categories: 顶层 list[dict]（会被原地修改，新增节点和被恢复项）
+    entry: 回收站条目，含 type / payload / origin_path / deleted_at
+
+    返回: (restored_node, rebuilt_count, renamed)
+        restored_node: 被恢复并最终落入 categories 的节点（同 entry["payload"]，可能其 name/title 被改）
+        rebuilt_count: 重建的中间节点数
+        renamed: bool，是否因同级重名加了时间前缀
+    """
+    origin_path = entry["origin_path"]
+    item_type = entry["type"]
+    payload = entry["payload"]
+    deleted_at = entry["deleted_at"]
+
+    if item_type not in ("category", "prompt"):
+        raise ValueError(f"未知 type: {item_type}")
+    if item_type == "prompt" and not origin_path:
+        raise ValueError("prompt 的 origin_path 不能为空")
+
+    if item_type == "category" and not origin_path:
+        target_list = categories
+        rebuilt_count = 0
+    else:
+        parent_node, rebuilt_count = ensure_path(categories, origin_path)
+        target_list = parent_node["children"] if item_type == "category" else parent_node["prompts"]
+
+    name_field = "name" if item_type == "category" else "title"
+    original_name = payload[name_field]
+    renamed = False
+    if any(item.get(name_field) == original_name for item in target_list):
+        payload[name_field] = f"[{deleted_at}] {original_name}"
+        renamed = True
+
+    target_list.append(payload)
+    return payload, rebuilt_count, renamed
