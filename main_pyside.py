@@ -527,6 +527,15 @@ class PinPromptApp(QMainWindow):
 
     def _on_drop_completed(self):
         self.data["categories"] = self._tree_to_categories()
+        # 同步 KIND_KEY 以反映实际层级（拖放后节点位置可能改变）
+        root = self.category_tree.invisibleRootItem()
+        for i in range(root.childCount()):
+            item = root.child(i)
+            kind = item.data(0, KIND_KEY)
+            if kind in ("top", "child"):
+                item.setData(0, KIND_KEY, "top")
+                for j in range(item.childCount()):
+                    item.child(j).setData(0, KIND_KEY, "child")
         self.save_data()
         self.refresh_categories()
 
@@ -719,11 +728,12 @@ class PinPromptApp(QMainWindow):
     def _siblings_of(self, cat, kind, item):
         if kind == "top":
             return self.data["categories"]
-        parent_item = item.parent()
-        parent_cat = parent_item.data(0, ROLE_KEY) if parent_item else None
-        if parent_cat:
-            return parent_cat.get("children", [])
-        return []
+        # 直接扫描数据：不依赖 item.parent()，防止拖放后树结构与实际数据不一致
+        for top in self.data["categories"]:
+            if any(c is cat or c == cat for c in top.get("children", [])):
+                return top["children"]
+        # 兜底：如果扫描不到（理论上不应发生），按顶级处理
+        return self.data["categories"]
 
     def _add_subcategory(self, parent_cat):
         from data_ops import is_name_unique_among_siblings
@@ -742,18 +752,28 @@ class PinPromptApp(QMainWindow):
         self.status_bar.showMessage(f"已添加子分类: {name}")
 
     def _move_to_top(self, cat, kind, item):
-        siblings = self._siblings_of(cat, kind, item)
-        if cat in siblings:
-            siblings.remove(cat)
+        from data_ops import is_name_unique_among_siblings
+        if not is_name_unique_among_siblings(self.data["categories"], cat["name"]):
+            QMessageBox.warning(self, "警告", "顶级分类已存在同名！")
+            return
+        # 防御：从所有子分类列表和顶级列表中彻底移除 cat，再插入到顶级
+        for top in self.data["categories"]:
+            top["children"] = [c for c in top.get("children", []) if not (c is cat or c == cat)]
+        self.data["categories"] = [c for c in self.data["categories"] if not (c is cat or c == cat)]
         self.data["categories"].insert(0, cat)
         self.save_data()
         self.refresh_categories()
         self.status_bar.showMessage("已移到顶部")
 
     def _promote_to_top(self, cat, kind, item):
-        siblings = self._siblings_of(cat, kind, item)
-        if cat in siblings:
-            siblings.remove(cat)
+        from data_ops import is_name_unique_among_siblings
+        if not is_name_unique_among_siblings(self.data["categories"], cat["name"]):
+            QMessageBox.warning(self, "警告", "顶级分类已存在同名！")
+            return
+        # 防御：从所有子分类列表和顶级列表中彻底移除 cat，再添加到顶级
+        for top in self.data["categories"]:
+            top["children"] = [c for c in top.get("children", []) if not (c is cat or c == cat)]
+        self.data["categories"] = [c for c in self.data["categories"] if not (c is cat or c == cat)]
         self.data["categories"].append(cat)
         self.save_data()
         self.refresh_categories()
@@ -801,9 +821,10 @@ class PinPromptApp(QMainWindow):
         if reply != QMessageBox.Yes:
             return
         origin_path = self._origin_path_of(cat, kind, item)
-        siblings = self._siblings_of(cat, kind, item)
-        if cat in siblings:
-            siblings.remove(cat)
+        # 防御：从所有子分类列表和顶级列表中彻底移除 cat
+        for top in self.data["categories"]:
+            top["children"] = [c for c in top.get("children", []) if not (c is cat or c == cat)]
+        self.data["categories"] = [c for c in self.data["categories"] if not (c is cat or c == cat)]
         entry = {
             "id": next_trash_id(self.data["trash"]),
             "type": "category",

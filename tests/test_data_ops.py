@@ -340,3 +340,19 @@ def test_drag_separator_rejected():
     ok, _ = is_drop_valid(src, tgt, "between")
     assert ok is False
 
+
+def test_drop_parent_between_child_rejected():
+    # 把已有子分类的父分类拖到子分类的 between 位置 → 会成为该子分类的兄弟（即其父分类的子分类），形成 3 层，禁止
+    src = _make_node("A", role="top", has_children=True)
+    tgt = _make_node("B", role="child")
+    ok, reason = is_drop_valid(src, tgt, "between")
+    assert ok is False
+    assert "2 层" in reason
+
+
+def test_drop_parent_between_top_allowed():
+    # 把已有子分类的父分类在顶级之间重新排序 → 仍在 root 级别，不会形成 3 层，允许
+    src = _make_node("A", role="top", has_children=True)
+    tgt = _make_node("B", role="top")
+    assert is_drop_valid(src, tgt, "between") == (True, "")
+

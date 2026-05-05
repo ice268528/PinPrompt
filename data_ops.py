@@ -152,7 +152,10 @@ def is_drop_valid(source, target, position):
         if target.get("role") == "trash":
             return False, "如需删除请用右键菜单"
         return False, "目标位置不可放置"
-    # 已有 children 的父分类不能再被拖到其他分类身上（会形成 3 层）
-    if position == "on" and source.get("has_children"):
-        return False, "最多支持 2 层嵌套"
+    # 已有 children 的父分类不能再被拖到其他分类下（会形成 3 层）
+    if source.get("has_children"):
+        if position == "on":
+            return False, "最多支持 2 层嵌套"
+        if position == "between" and target.get("role") == "child":
+            return False, "最多支持 2 层嵌套"
     return True, ""

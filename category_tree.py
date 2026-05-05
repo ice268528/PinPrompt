@@ -51,5 +51,46 @@ class CategoryTreeWidget(QTreeWidget):
             event.ignore()
             return
 
+        # 名称唯一性预检
+        source_cat = source_item.data(0, ROLE_KEY)
+        if source_cat and source_cat.get("name"):
+            name = source_cat["name"]
+            if position == "on" and target_item:
+                for j in range(target_item.childCount()):
+                    sib = target_item.child(j)
+                    if sib is source_item:
+                        continue
+                    sib_cat = sib.data(0, ROLE_KEY)
+                    if sib_cat and sib_cat.get("name") == name:
+                        self.drop_rejected.emit("目标分类下已存在同名子分类")
+                        event.ignore()
+                        return
+            elif position == "between":
+                target_parent = target_item.parent()
+                if target_parent is None:
+                    root = self.invisibleRootItem()
+                    for i in range(root.childCount()):
+                        sib = root.child(i)
+                        if sib is source_item:
+                            continue
+                        if sib.data(0, KIND_KEY) not in ("top", "child"):
+                            continue
+                        sib_cat = sib.data(0, ROLE_KEY)
+                        if sib_cat and sib_cat.get("name") == name:
+                            self.drop_rejected.emit("顶级分类已存在同名")
+                            event.ignore()
+                            return
+                else:
+                    for j in range(target_parent.childCount()):
+                        sib = target_parent.child(j)
+                        if sib is source_item:
+                            continue
+                        sib_cat = sib.data(0, ROLE_KEY)
+                        if sib_cat and sib_cat.get("name") == name:
+                            self.drop_rejected.emit("同级分类已存在同名")
+                            event.ignore()
+                            return
+
+        event.setDropAction(Qt.MoveAction)
         super().dropEvent(event)
         self.drop_completed.emit()
