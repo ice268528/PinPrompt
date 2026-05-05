@@ -331,8 +331,8 @@ class PinPromptApp(QMainWindow):
         right_panel = self.create_prompt_panel()
         splitter.addWidget(right_panel)
         
-        # 设置分割比例
-        splitter.setSizes([200, 700])
+        # 设置分割比例（左侧给分类树更多空间，缓解拥挤感）
+        splitter.setSizes([260, 640])
         
         main_layout.addWidget(splitter, 1)
         
@@ -409,6 +409,29 @@ class PinPromptApp(QMainWindow):
         title.setFont(QFont("Microsoft YaHei", 10, QFont.Bold))
         layout.addWidget(title)
 
+        # 搜索 + 折叠控制
+        ctrl_layout = QHBoxLayout()
+
+        self.cat_search_edit = QLineEdit()
+        self.cat_search_edit.setPlaceholderText("🔍 搜索分类...")
+        self.cat_search_edit.setClearButtonEnabled(True)
+        self.cat_search_edit.textChanged.connect(self.on_cat_search_changed)
+        ctrl_layout.addWidget(self.cat_search_edit)
+
+        self.collapse_all_btn = QPushButton("⏷")
+        self.collapse_all_btn.setFixedWidth(28)
+        self.collapse_all_btn.setToolTip("全部折叠")
+        self.collapse_all_btn.clicked.connect(self.collapse_all_categories)
+        ctrl_layout.addWidget(self.collapse_all_btn)
+
+        self.expand_all_btn = QPushButton("⏵")
+        self.expand_all_btn.setFixedWidth(28)
+        self.expand_all_btn.setToolTip("全部展开")
+        self.expand_all_btn.clicked.connect(self.expand_all_categories)
+        ctrl_layout.addWidget(self.expand_all_btn)
+
+        layout.addLayout(ctrl_layout)
+
         # 分类树
         self.category_tree = CategoryTreeWidget()
         self.category_tree.setFont(QFont("Microsoft YaHei", 10))
@@ -473,16 +496,42 @@ class PinPromptApp(QMainWindow):
         return item
 
     def refresh_categories(self):
-        """刷新分类树。"""
+        """刷新分类树，支持搜索过滤。"""
+        selected_path = None
+        current = self.category_tree.currentItem()
+        if current:
+            cat = current.data(0, ROLE_KEY)
+            if cat:
+                selected_path = self._path_of_category(cat)
+
         self.category_tree.blockSignals(True)
         self.category_tree.clear()
+
+        search_text = self.cat_search_edit.text().strip().lower() if hasattr(self, 'cat_search_edit') else ""
+
         for cat in self.data["categories"]:
+            if search_text:
+                cat_match = search_text in cat["name"].lower()
+                child_matches = [c for c in cat.get("children", [])
+                                 if search_text in c["name"].lower()]
+                if not cat_match and not child_matches:
+                    continue
+
             top_item = self._make_category_item(cat, role="top")
             self.category_tree.addTopLevelItem(top_item)
-            for child in cat.get("children", []):
+
+            children_to_show = cat.get("children", [])
+            if search_text and not cat_match:
+                children_to_show = child_matches
+
+            for child in children_to_show:
                 child_item = self._make_category_item(child, role="child")
                 top_item.addChild(child_item)
-            top_item.setExpanded(cat.get("expanded", False))
+
+            if search_text:
+                top_item.setExpanded(True)
+            else:
+                top_item.setExpanded(cat.get("expanded", False))
 
         # 分隔符（不可选中、不可拖拽）
         sep = QTreeWidgetItem(["────────"])
@@ -497,7 +546,75 @@ class PinPromptApp(QMainWindow):
         trash_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
         self.category_tree.addTopLevelItem(trash_item)
 
+        if selected_path:
+            item = self._find_item_by_path(selected_path)
+            if item:
+                self.category_tree.setCurrentItem(item)
+
         self.category_tree.blockSignals(False)
+
+    def _path_of_category(self, cat):
+        """根据 dict 引用返回其在 data 中的路径 [name] 或 [parent_name, name]。"""
+        for top in self.data["categories"]:
+            if top is cat:
+                return [top["name"]]
+            for child in top.get("children", []):
+                if child is cat:
+                    return [top["name"], child["name"]]
+        return []
+
+    def _find_item_by_path(self, path):
+        """在 QTreeWidget 中按路径查找对应的 QTreeWidgetItem。"""
+        if not path:
+            return None
+        root = self.category_tree.invisibleRootItem()
+        for i in range(root.childCount()):
+            item = root.child(i)
+            cat = item.data(0, ROLE_KEY)
+            if cat and cat.get("name") == path[0]:
+                if len(path) == 1:
+                    return item
+                for j in range(item.childCount()):
+                    child_item = item.child(j)
+                    child_cat = child_item.data(0, ROLE_KEY)
+                    if child_cat and child_cat.get("name") == path[1]:
+                        return child_item
+        return None
+
+    def on_cat_search_changed(self, text):
+        """分类搜索框内容变化时刷新树。"""
+        self.refresh_categories()
+
+    def collapse_all_categories(self):
+        """全部折叠分类树。"""
+        root = self.category_tree.invisibleRootItem()
+        for i in range(root.childCount()):
+            item = root.child(i)
+            if item.data(0, KIND_KEY) in ("top", "child"):
+                item.setExpanded(False)
+                self._persist_expanded_for_item(item)
+        self.save_data()
+
+    def expand_all_categories(self):
+        """全部展开分类树。"""
+        root = self.category_tree.invisibleRootItem()
+        for i in range(root.childCount()):
+            item = root.child(i)
+            if item.data(0, KIND_KEY) in ("top", "child"):
+                item.setExpanded(True)
+                self._persist_expanded_for_item(item)
+        self.save_data()
+
+    def _persist_expanded_for_item(self, item):
+        """把单个 item 及其子项的展开状态写回 self.data。"""
+        cat = item.data(0, ROLE_KEY)
+        if cat is not None:
+            cat["expanded"] = item.isExpanded()
+        for j in range(item.childCount()):
+            child_item = item.child(j)
+            child_cat = child_item.data(0, ROLE_KEY)
+            if child_cat is not None:
+                child_cat["expanded"] = child_item.isExpanded()
 
     def on_category_select(self, current, previous):
         """选择分类树节点。"""
