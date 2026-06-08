@@ -7,8 +7,9 @@ from data_ops import is_drop_valid
 
 
 # 在 QTreeWidgetItem 的 UserRole 上挂载的数据键
-ROLE_KEY = Qt.UserRole          # 指向 data dict 的引用（叶子分类、子分类、父分类）
-KIND_KEY = Qt.UserRole + 1      # str: "top" / "child" / "trash" / "separator"
+ROLE_KEY = Qt.UserRole          # 指向 data dict 的引用（分类 dict 或 prompt dict）
+KIND_KEY = Qt.UserRole + 1      # str: "top" / "child" / "prompt" / "trash" / "separator"
+PROMPT_KEY = Qt.UserRole + 2    # 指向 prompt dict 的引用（仅 prompt 节点使用）
 
 
 class CategoryTreeWidget(QTreeWidget):
@@ -56,45 +57,67 @@ class CategoryTreeWidget(QTreeWidget):
             event.ignore()
             return
 
-        # 名称唯一性预检
-        source_cat = source_item.data(0, ROLE_KEY)
-        if source_cat and source_cat.get("name"):
-            name = source_cat["name"]
-            if position == "on" and target_item:
-                for j in range(target_item.childCount()):
-                    sib = target_item.child(j)
-                    if sib is source_item:
-                        continue
-                    sib_cat = sib.data(0, ROLE_KEY)
-                    if sib_cat and sib_cat.get("name") == name:
-                        self.drop_rejected.emit("目标分类下已存在同名子分类")
-                        event.ignore()
-                        return
-            elif position == "between":
-                target_parent = target_item.parent()
-                if target_parent is None:
-                    root = self.invisibleRootItem()
-                    for i in range(root.childCount()):
-                        sib = root.child(i)
-                        if sib is source_item:
-                            continue
-                        if sib.data(0, KIND_KEY) not in ("top", "child"):
-                            continue
-                        sib_cat = sib.data(0, ROLE_KEY)
-                        if sib_cat and sib_cat.get("name") == name:
-                            self.drop_rejected.emit("顶级分类已存在同名")
-                            event.ignore()
-                            return
-                else:
-                    for j in range(target_parent.childCount()):
-                        sib = target_parent.child(j)
+        # Prompt 特有校验
+        source_kind = source_item.data(0, KIND_KEY)
+        target_kind = target_item.data(0, KIND_KEY)
+
+        if source_kind == "prompt":
+            # Prompt 不能放到顶层
+            if position == "between" and target_item.parent() is None:
+                self.drop_rejected.emit("Prompt 必须在分类下")
+                event.ignore()
+                return
+            # Prompt 不能放到另一个 prompt 上
+            if position == "on" and target_kind == "prompt":
+                self.drop_rejected.emit("Prompt 不能嵌套")
+                event.ignore()
+                return
+
+        if target_kind == "prompt" and position == "on":
+            self.drop_rejected.emit("不能放到 Prompt 上")
+            event.ignore()
+            return
+
+        # 名称唯一性预检（仅分类节点需要，prompt 跳过）
+        if source_kind in ("top", "child"):
+            source_cat = source_item.data(0, ROLE_KEY)
+            if source_cat and source_cat.get("name"):
+                name = source_cat["name"]
+                if position == "on" and target_item:
+                    for j in range(target_item.childCount()):
+                        sib = target_item.child(j)
                         if sib is source_item:
                             continue
                         sib_cat = sib.data(0, ROLE_KEY)
                         if sib_cat and sib_cat.get("name") == name:
-                            self.drop_rejected.emit("同级分类已存在同名")
+                            self.drop_rejected.emit("目标分类下已存在同名子分类")
                             event.ignore()
                             return
+                elif position == "between":
+                    target_parent = target_item.parent()
+                    if target_parent is None:
+                        root = self.invisibleRootItem()
+                        for i in range(root.childCount()):
+                            sib = root.child(i)
+                            if sib is source_item:
+                                continue
+                            if sib.data(0, KIND_KEY) not in ("top", "child"):
+                                continue
+                            sib_cat = sib.data(0, ROLE_KEY)
+                            if sib_cat and sib_cat.get("name") == name:
+                                self.drop_rejected.emit("顶级分类已存在同名")
+                                event.ignore()
+                                return
+                    else:
+                        for j in range(target_parent.childCount()):
+                            sib = target_parent.child(j)
+                            if sib is source_item:
+                                continue
+                            sib_cat = sib.data(0, ROLE_KEY)
+                            if sib_cat and sib_cat.get("name") == name:
+                                self.drop_rejected.emit("同级分类已存在同名")
+                                event.ignore()
+                                return
 
         # ---- 手动实现 item 移动，避免 Qt 默认 dropEvent 可能丢失自定义 data ----
         old_parent = source_item.parent()
@@ -107,7 +130,8 @@ class CategoryTreeWidget(QTreeWidget):
             if old_index >= 0:
                 old_parent.takeChild(old_index)
             target_item.addChild(source_item)
-            source_item.setData(0, KIND_KEY, "child")
+            if source_kind != "prompt":
+                source_item.setData(0, KIND_KEY, "child")
         else:
             # 同级排序
             target_parent = target_item.parent()
@@ -128,10 +152,11 @@ class CategoryTreeWidget(QTreeWidget):
 
             target_parent.insertChild(target_index, source_item)
 
-            if target_parent is self.invisibleRootItem():
-                source_item.setData(0, KIND_KEY, "top")
-            else:
-                source_item.setData(0, KIND_KEY, "child")
+            if source_kind != "prompt":
+                if target_parent is self.invisibleRootItem():
+                    source_item.setData(0, KIND_KEY, "top")
+                else:
+                    source_item.setData(0, KIND_KEY, "child")
 
         event.setDropAction(Qt.MoveAction)
         event.accept()

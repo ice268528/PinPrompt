@@ -12,13 +12,14 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QTreeWidgetItem, QTextEdit,
     QLineEdit, QDialog, QDialogButtonBox, QCheckBox, QScrollArea,
-    QFrame, QSplitter, QMessageBox, QStatusBar, QMenu, QInputDialog
+    QFrame, QSplitter, QMessageBox, QStatusBar, QMenu, QInputDialog,
+    QTextBrowser
 )
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QIcon, QKeySequence, QShortcut
 import pyperclip
 
-from category_tree import CategoryTreeWidget, ROLE_KEY, KIND_KEY
+from category_tree import CategoryTreeWidget, ROLE_KEY, KIND_KEY, PROMPT_KEY
 from data_ops import migrate_v1_to_v2
 
 # 数据文件路径（exe 打包时放在 exe 同级目录，开发时放在脚本目录）
@@ -87,14 +88,17 @@ class PromptCard(QFrame):
         
         layout.addLayout(title_layout)
         
-        # 内容预览
+        # 内容预览（Markdown 渲染）
         content = self.prompt_data.get("content", "")
-        preview = content[:150] + "..." if len(content) > 150 else content
-        self.content_label = QLabel(preview)
-        self.content_label.setWordWrap(True)
-        self.content_label.setFont(QFont("Microsoft YaHei", 9))
-        self.content_label.setStyleSheet("color: #666666;")
-        layout.addWidget(self.content_label)
+        self.content_browser = QTextBrowser()
+        self.content_browser.setMarkdown(content)
+        self.content_browser.setFont(QFont("Microsoft YaHei", 9))
+        self.content_browser.setMaximumHeight(120)
+        self.content_browser.setStyleSheet(
+            "QTextBrowser { background: transparent; border: none; color: #666666; }"
+        )
+        self.content_browser.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        layout.addWidget(self.content_browser)
         
         # 时间信息
         created = self.prompt_data.get("created", "")
@@ -200,51 +204,78 @@ class AddEditDialog(QDialog):
         
     def setup_ui(self, title, content):
         """设置UI"""
+        from PySide6.QtWidgets import QStackedWidget
+
         self.setWindowTitle("编辑 Prompt" if self.is_edit else "新建 Prompt")
         self.setMinimumSize(500, 350)
-        self.resize(550, 400)
-        
+        self.resize(600, 450)
+
         layout = QVBoxLayout(self)
-        
+
         # 标题输入
         title_label = QLabel("标题:")
         title_label.setFont(QFont("Microsoft YaHei", 10))
         layout.addWidget(title_label)
-        
+
         self.title_edit = QLineEdit()
         self.title_edit.setFont(QFont("Microsoft YaHei", 10))
         self.title_edit.setText(title)
         layout.addWidget(self.title_edit)
-        
-        # 内容输入
-        content_label = QLabel("内容:")
+
+        # 内容标签 + 预览按钮
+        content_header = QHBoxLayout()
+        content_label = QLabel("内容（支持 Markdown）:")
         content_label.setFont(QFont("Microsoft YaHei", 10))
-        layout.addWidget(content_label)
-        
+        content_header.addWidget(content_label)
+        content_header.addStretch()
+        self.preview_btn = QPushButton("预览")
+        self.preview_btn.setCheckable(True)
+        self.preview_btn.toggled.connect(self._toggle_preview)
+        content_header.addWidget(self.preview_btn)
+        layout.addLayout(content_header)
+
+        # 编辑/预览切换
+        self.stack = QStackedWidget()
+
+        # 页面 0：编辑
         self.content_edit = QTextEdit()
         self.content_edit.setFont(QFont("Microsoft YaHei", 10))
         self.content_edit.setPlainText(content)
         self.content_edit.setAcceptRichText(False)
-        layout.addWidget(self.content_edit)
-        
+        self.stack.addWidget(self.content_edit)
+
+        # 页面 1：预览
+        self.preview_browser = QTextBrowser()
+        self.preview_browser.setFont(QFont("Microsoft YaHei", 10))
+        self.stack.addWidget(self.preview_browser)
+
+        layout.addWidget(self.stack)
+
         # 按钮
         button_box = QDialogButtonBox(
             QDialogButtonBox.Save | QDialogButtonBox.Cancel
         )
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
-        
-        # 设置按钮文本
+
         save_btn = button_box.button(QDialogButtonBox.Save)
         save_btn.setText("保存 (Ctrl+S)")
-        
+
         layout.addWidget(button_box)
-        
+
         # Ctrl+S 快捷键
         save_shortcut = QShortcut(QKeySequence("Ctrl+S"), self)
         save_shortcut.activated.connect(self.accept)
-        
-        self.setWindowTitle("编辑 Prompt" if self.is_edit else "新建 Prompt")
+
+    def _toggle_preview(self, checked):
+        if checked:
+            md = self.content_edit.toPlainText()
+            self.preview_browser.setMarkdown(md)
+            self.stack.setCurrentIndex(1)
+            self.preview_btn.setText("编辑")
+        else:
+            self.stack.setCurrentIndex(0)
+            self.preview_btn.setText("预览")
         
     def get_data(self):
         """获取输入数据"""
@@ -495,6 +526,15 @@ class PinPromptApp(QMainWindow):
         )
         return item
 
+    def _make_prompt_item(self, prompt_dict):
+        """根据 prompt dict 创建 QTreeWidgetItem（叶子节点）。"""
+        title = prompt_dict.get("title", "无标题")
+        item = QTreeWidgetItem([f"📄 {title}"])
+        item.setData(0, PROMPT_KEY, prompt_dict)
+        item.setData(0, KIND_KEY, "prompt")
+        item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsDragEnabled)
+        return item
+
     def refresh_categories(self):
         """刷新分类树，支持搜索过滤。"""
         selected_path = None
@@ -527,6 +567,13 @@ class PinPromptApp(QMainWindow):
             for child in children_to_show:
                 child_item = self._make_category_item(child, role="child")
                 top_item.addChild(child_item)
+                # 子分类下的 Prompt
+                for p in child.get("prompts", []):
+                    child_item.addChild(self._make_prompt_item(p))
+
+            # 顶级分类自己的 Prompt
+            for p in cat.get("prompts", []):
+                top_item.addChild(self._make_prompt_item(p))
 
             if search_text:
                 top_item.setExpanded(True)
@@ -678,6 +725,16 @@ class PinPromptApp(QMainWindow):
             self.current_view = "trash"
             self.refresh_trash_view()
             return
+        if kind == "prompt":
+            # 选中 Prompt 节点时，切换到其所属分类
+            parent_item = current.parent()
+            if parent_item is not None:
+                cat = self._find_real_cat(parent_item)
+                if cat is not None:
+                    self.current_category = cat
+                    self.current_view = "normal"
+                    self.refresh_prompts()
+            return
         cat = self._find_real_cat(current)
         if cat is None:
             return
@@ -699,15 +756,18 @@ class PinPromptApp(QMainWindow):
             if kind in ("top", "child"):
                 item.setData(0, KIND_KEY, "top")
                 for j in range(item.childCount()):
-                    item.child(j).setData(0, KIND_KEY, "child")
+                    child = item.child(j)
+                    if child.data(0, KIND_KEY) != "prompt":
+                        child.setData(0, KIND_KEY, "child")
         self.save_data()
         self.refresh_categories()
 
     def _tree_to_categories(self):
         """遍历 QTreeWidget，把分类节点按当前层级结构重新序列化为 list[dict]。
-        从 self.data 中查找真实 dict（按名字匹配），避免 ROLE_KEY 引用失效。"""
-        from data_ops import find_node_by_path
+        从 self.data 中查找真实 dict（按名字匹配），避免 ROLE_KEY 引用失效。
+        Prompt 顺序以树中顺序为准。已出现在任何分类中的 prompt 不会重复出现（拖拽是移动不是复制）。"""
         result = []
+        all_prompt_ids = set()  # 跟踪所有已收集的 prompt，防止拖拽后复制
         root = self.category_tree.invisibleRootItem()
         for i in range(root.childCount()):
             item = root.child(i)
@@ -722,15 +782,44 @@ class PinPromptApp(QMainWindow):
             cat = real if real is not None else stale
             cat["expanded"] = item.isExpanded()
             cat["children"] = []
+            cat["prompts"] = []
+            child_cats_real = (real or stale).get("children", [])
             for j in range(item.childCount()):
                 child_item = item.child(j)
-                child_stale = child_item.data(0, ROLE_KEY)
-                if child_stale is None:
-                    continue
-                child_name = child_stale.get("name")
-                child_real = next((c for c in cat.get("children", []) if c["name"] == child_name), None) if child_name else None
-                child_cat = child_real if child_real is not None else child_stale
-                cat["children"].append(child_cat)
+                child_kind = child_item.data(0, KIND_KEY)
+                if child_kind == "prompt":
+                    p = child_item.data(0, PROMPT_KEY)
+                    if p is not None and id(p) not in all_prompt_ids:
+                        cat["prompts"].append(p)
+                        all_prompt_ids.add(id(p))
+                elif child_kind == "child":
+                    child_stale = child_item.data(0, ROLE_KEY)
+                    if child_stale is None:
+                        continue
+                    child_name = child_stale.get("name")
+                    child_real = next((c for c in child_cats_real if c["name"] == child_name), None) if child_name else None
+                    child_cat = child_real if child_real is not None else child_stale
+                    tree_prompts = []
+                    for k in range(child_item.childCount()):
+                        grandchild = child_item.child(k)
+                        if grandchild.data(0, KIND_KEY) == "prompt":
+                            p = grandchild.data(0, PROMPT_KEY)
+                            if p is not None and id(p) not in all_prompt_ids:
+                                tree_prompts.append(p)
+                                all_prompt_ids.add(id(p))
+                    real_child = next((c for c in child_cats_real if c["name"] == child_name), None) if child_name else None
+                    existing = real_child.get("prompts", []) if real_child else []
+                    tree_ids = {id(p) for p in tree_prompts}
+                    orphans = [p for p in existing if id(p) not in tree_ids and id(p) not in all_prompt_ids]
+                    child_cat["prompts"] = tree_prompts + orphans
+                    for p in orphans:
+                        all_prompt_ids.add(id(p))
+                    cat["children"].append(child_cat)
+            # 顶级 prompt：树中收集的 + 旧数据中未被其他分类认领的
+            existing_top = (real or stale).get("prompts", [])
+            tree_ids = {id(p) for p in cat["prompts"]}
+            orphans = [p for p in existing_top if id(p) not in tree_ids and id(p) not in all_prompt_ids]
+            cat["prompts"] = cat["prompts"] + orphans
             result.append(cat)
         return result
 
