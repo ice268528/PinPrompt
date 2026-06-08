@@ -4,15 +4,17 @@
 
 <h1 align="center">PinPrompt - Prompt Classification Management Tool</h1>
 
-A lightweight desktop Prompt management tool built with PySide6, supporting two-level nested categories, drag-and-drop sorting, trash bin, window always-on-top, one-click copy, and keyword search.
+A lightweight desktop Prompt management tool built with PySide6, supporting two-level nested categories, drag-and-drop sorting, trash bin, window always-on-top, one-click copy, keyword search, and Markdown rendering.
 
 ## ✨ Features
 
 - **Two-Level Category Tree** — Support top-level categories + sub-categories (max 2 levels), collapsible/expandable
-- **Drag-and-Drop Sorting** — Freely reorder categories, move sub-categories across parent categories
+- **Prompt Tree Nodes** — Prompts displayed directly in the category tree, with drag-and-drop sorting and cross-category movement
+- **Drag-and-Drop Sorting** — Freely reorder categories and Prompts, move sub-categories across parent categories
 - **Trash Bin** — Categories and Prompts go to trash when deleted, with restore or permanent delete options
 - **Auto Path Rebuild** — When restoring, if the original parent was deleted, automatically rebuild empty categories along the recorded path
 - **Recursive View** — Parent category can display all descendant Prompts with one click
+- **Markdown Rendering** — Prompt content supports Markdown format with auto-rendered preview; editor has built-in preview mode
 - **One-Click Copy** — Each Prompt has an independent copy button with Toast notification
 - **Always-on-Top** — Uses Windows API to keep window on top without affecting close button
 - **Keyword Search** — Filter Prompts by title and content in real-time
@@ -46,7 +48,7 @@ pip install PySide6 pyperclip
 
 ```bash
 conda activate PinPrompt
-python -m PyInstaller --noconfirm --onefile --windowed --icon "PinPrompt.ico" --name "PinPrompt" main_pyside.py
+python -m PyInstaller --noconfirm --onefile --windowed --icon "PinPrompt.ico" --add-data "PinPrompt.ico;." --name "PinPrompt" main_pyside.py
 ```
 
 Output: `dist/PinPrompt.exe` (~45MB).
@@ -58,9 +60,10 @@ Output: `dist/PinPrompt.exe` (~45MB).
 | Create Top Category | Click "➕ 新建顶级分类" at top, enter category name |
 | Create Sub-Category | Right-click a category → "新建子分类", enter name |
 | Select Category | Click category in left sidebar, supports collapse/expand |
-| Drag-and-Drop | Drag categories to reorder, sub-categories can move to other parents |
+| Drag-and-Drop | Drag categories or Prompts to reorder, supports cross-category movement |
 | Recursive View | Click "🌲 递归显示" to show all descendant Prompts of a parent |
 | Create Prompt | Select a category, click "📝 新建Prompt" |
+| Markdown Editing | Prompt content supports Markdown syntax; click "预览" button in editor to preview rendered output |
 | Copy Prompt | Click "📋 复制" on the card |
 | Edit Prompt | Click "✏️ 编辑" (Ctrl+S to save in dialog) |
 | Delete Prompt | Click "🗑️ 删除" → moves to trash |
@@ -151,3 +154,4 @@ PinPrompt/
 - **v1** — tkinter prototype
 - **v2** — PySide6 rewrite, fix tkinter Canvas scroll performance; add search; implement window always-on-top via Windows API; Toast notification instead of dialog; packaged as single exe
 - **v3** — Category tree overhaul: QListWidget → QTreeWidget, supporting two-level nesting, drag-and-drop sorting, collapse/expand; added trash bin (delete→restore→permanent delete); added recursive view; v1→v2 data migration
+- **v4** — Prompt tree nodes in sidebar with drag-and-drop sorting and cross-category movement; Markdown rendering for Prompt content with built-in editor preview; fixed window icon not showing in packaged exe
