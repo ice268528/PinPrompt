@@ -25,8 +25,10 @@ from data_ops import migrate_v1_to_v2
 # 数据文件路径（exe 打包时放在 exe 同级目录，开发时放在脚本目录）
 if getattr(sys, 'frozen', False):
     DATA_DIR = os.path.dirname(sys.executable)
+    RESOURCE_DIR = getattr(sys, '_MEIPASS', DATA_DIR)
 else:
     DATA_DIR = os.path.dirname(os.path.abspath(__file__))
+    RESOURCE_DIR = DATA_DIR
 DATA_FILE = os.path.join(DATA_DIR, "prompts.json")
 
 
@@ -334,7 +336,7 @@ class PinPromptApp(QMainWindow):
         self.setMinimumSize(600, 400)
 
         # 设置窗口图标
-        icon_path = os.path.join(DATA_DIR, "PinPrompt.ico")
+        icon_path = os.path.join(RESOURCE_DIR, "PinPrompt.ico")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         
