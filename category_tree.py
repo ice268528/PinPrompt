@@ -30,6 +30,11 @@ class CategoryTreeWidget(QTreeWidget):
             event.ignore()
             return
 
+        # 禁止拖到自身
+        if source_item is target_item:
+            event.ignore()
+            return
+
         drop_indicator = self.dropIndicatorPosition()
         if drop_indicator == QAbstractItemView.OnItem:
             position = "on"
@@ -91,6 +96,43 @@ class CategoryTreeWidget(QTreeWidget):
                             event.ignore()
                             return
 
+        # ---- 手动实现 item 移动，避免 Qt 默认 dropEvent 可能丢失自定义 data ----
+        old_parent = source_item.parent()
+        if old_parent is None:
+            old_parent = self.invisibleRootItem()
+        old_index = old_parent.indexOfChild(source_item)
+
+        if position == "on":
+            # 变成 target_item 的子分类
+            if old_index >= 0:
+                old_parent.takeChild(old_index)
+            target_item.addChild(source_item)
+            source_item.setData(0, KIND_KEY, "child")
+        else:
+            # 同级排序
+            target_parent = target_item.parent()
+            if target_parent is None:
+                target_parent = self.invisibleRootItem()
+            target_index = target_parent.indexOfChild(target_item)
+
+            if old_index >= 0:
+                old_parent.takeChild(old_index)
+
+            # 根据指示器微调插入位置
+            if drop_indicator == QAbstractItemView.BelowItem:
+                target_index += 1
+
+            # 同源同父时，移除后目标索引需回退一位
+            if old_parent is target_parent and old_index < target_index:
+                target_index -= 1
+
+            target_parent.insertChild(target_index, source_item)
+
+            if target_parent is self.invisibleRootItem():
+                source_item.setData(0, KIND_KEY, "top")
+            else:
+                source_item.setData(0, KIND_KEY, "child")
+
         event.setDropAction(Qt.MoveAction)
-        super().dropEvent(event)
+        event.accept()
         self.drop_completed.emit()

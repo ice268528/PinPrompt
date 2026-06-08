@@ -552,6 +552,53 @@ class PinPromptApp(QMainWindow):
                 self.category_tree.setCurrentItem(item)
 
         self.category_tree.blockSignals(False)
+        # blockSignals 期间 setCurrentItem 不会触发信号，需手动同步右侧视图
+        self.on_category_select(self.category_tree.currentItem(), None)
+
+    def _get_current_cat(self):
+        """返回 self.current_category 在 self.data 中的真实 dict 引用。"""
+        cat = self.current_category
+        if cat is None:
+            return None
+        # 检查是否已经是 self.data 中的有效引用
+        for top in self.data["categories"]:
+            if top is cat:
+                return cat
+            for child in top.get("children", []):
+                if child is cat:
+                    return cat
+        # 引用已失效，按名字查找
+        name = cat.get("name")
+        if name is None:
+            return None
+        for top in self.data["categories"]:
+            if top["name"] == name:
+                return top
+            for child in top.get("children", []):
+                if child["name"] == name:
+                    return child
+        return None
+
+    def _find_real_cat(self, item):
+        """通过树节点的 ROLE_KEY name 从 self.data 中查找真实的分类 dict。
+        ROLE_KEY 的 dict 可能因 refresh_categories 重建而与 self.data 断开引用。"""
+        stale = item.data(0, ROLE_KEY)
+        if stale is None:
+            return None
+        name = stale.get("name")
+        if name is None:
+            return None
+        kind = item.data(0, KIND_KEY)
+        if kind == "top":
+            return next((c for c in self.data["categories"] if c["name"] == name), None)
+        # child: 找父级的真实 dict
+        parent_item = item.parent()
+        if parent_item is None:
+            return None
+        parent_real = self._find_real_cat(parent_item)
+        if parent_real is None:
+            return None
+        return next((c for c in parent_real.get("children", []) if c["name"] == name), None)
 
     def _path_of_category(self, cat):
         """根据 dict 引用返回其在 data 中的路径 [name] 或 [parent_name, name]。"""
@@ -607,12 +654,12 @@ class PinPromptApp(QMainWindow):
 
     def _persist_expanded_for_item(self, item):
         """把单个 item 及其子项的展开状态写回 self.data。"""
-        cat = item.data(0, ROLE_KEY)
+        cat = self._find_real_cat(item)
         if cat is not None:
             cat["expanded"] = item.isExpanded()
         for j in range(item.childCount()):
             child_item = item.child(j)
-            child_cat = child_item.data(0, ROLE_KEY)
+            child_cat = self._find_real_cat(child_item)
             if child_cat is not None:
                 child_cat["expanded"] = child_item.isExpanded()
 
@@ -631,7 +678,7 @@ class PinPromptApp(QMainWindow):
             self.current_view = "trash"
             self.refresh_trash_view()
             return
-        cat = current.data(0, ROLE_KEY)
+        cat = self._find_real_cat(current)
         if cat is None:
             return
         self.current_category = cat
@@ -657,7 +704,9 @@ class PinPromptApp(QMainWindow):
         self.refresh_categories()
 
     def _tree_to_categories(self):
-        """遍历 QTreeWidget，把分类节点按当前层级结构重新序列化为 list[dict]。"""
+        """遍历 QTreeWidget，把分类节点按当前层级结构重新序列化为 list[dict]。
+        从 self.data 中查找真实 dict（按名字匹配），避免 ROLE_KEY 引用失效。"""
+        from data_ops import find_node_by_path
         result = []
         root = self.category_tree.invisibleRootItem()
         for i in range(root.childCount()):
@@ -665,16 +714,23 @@ class PinPromptApp(QMainWindow):
             kind = item.data(0, KIND_KEY)
             if kind not in ("top", "child"):
                 continue
-            cat = item.data(0, ROLE_KEY)
-            if cat is None:
+            stale = item.data(0, ROLE_KEY)
+            if stale is None:
                 continue
+            name = stale.get("name")
+            real = next((c for c in self.data["categories"] if c["name"] == name), None) if name else None
+            cat = real if real is not None else stale
             cat["expanded"] = item.isExpanded()
             cat["children"] = []
             for j in range(item.childCount()):
                 child_item = item.child(j)
-                child_cat = child_item.data(0, ROLE_KEY)
-                if child_cat is not None:
-                    cat["children"].append(child_cat)
+                child_stale = child_item.data(0, ROLE_KEY)
+                if child_stale is None:
+                    continue
+                child_name = child_stale.get("name")
+                child_real = next((c for c in cat.get("children", []) if c["name"] == child_name), None) if child_name else None
+                child_cat = child_real if child_real is not None else child_stale
+                cat["children"].append(child_cat)
             result.append(cat)
         return result
 
@@ -687,10 +743,12 @@ class PinPromptApp(QMainWindow):
         if self.current_view == "trash":
             self.refresh_trash_view()
             return
-        if self.current_category is None:
+        cat = self._get_current_cat()
+        if cat is None:
             self._clear_prompt_layout()
             return
-        if self.recursive_view and self.current_category.get("children"):
+        self.current_category = cat
+        if self.recursive_view and cat.get("children"):
             self._refresh_prompts_recursive()
         else:
             self._refresh_prompts_normal()
@@ -797,7 +855,9 @@ class PinPromptApp(QMainWindow):
         if kind == "separator":
             return
 
-        cat = item.data(0, ROLE_KEY)
+        cat = self._find_real_cat(item)
+        if cat is None:
+            return
         is_top = (kind == "top")
         is_child = (kind == "child")
 
@@ -864,6 +924,7 @@ class PinPromptApp(QMainWindow):
             return
         new_child = {"name": name, "prompts": [], "expanded": False, "children": []}
         parent_cat.setdefault("children", []).append(new_child)
+        parent_cat["expanded"] = True
         self.save_data()
         self.refresh_categories()
         self.status_bar.showMessage(f"已添加子分类: {name}")
@@ -904,12 +965,12 @@ class PinPromptApp(QMainWindow):
 
     def _origin_path_of(self, cat, kind, item):
         if kind == "top":
-            return [cat["name"]]
+            return []
         parent_item = item.parent()
         parent_cat = parent_item.data(0, ROLE_KEY) if parent_item else None
         if parent_cat:
-            return [parent_cat["name"], cat["name"]]
-        return [cat["name"]]
+            return [parent_cat["name"]]
+        return []
 
     def _path_of_current_category(self):
         cat = self.current_category
@@ -957,29 +1018,32 @@ class PinPromptApp(QMainWindow):
 
     def add_prompt(self):
         """添加 Prompt"""
-        if not self.current_category:
+        cat = self._get_current_cat()
+        if not cat:
             QMessageBox.warning(self, "警告", "请先选择分类！")
             return
-        
+
         dialog = AddEditDialog(self)
         if dialog.exec():
             data = dialog.get_data()
             if not data["title"] or not data["content"]:
                 QMessageBox.warning(self, "警告", "标题和内容不能为空！")
                 return
-            
-            self.current_category["prompts"].append({
+
+            cat["prompts"].append({
                 "title": data["title"],
                 "content": data["content"],
                 "created": datetime.now().strftime("%Y-%m-%d %H:%M")
             })
+            self.current_category = cat
             self.save_data()
+            self.refresh_categories()
             self.refresh_prompts()
             self.status_bar.showMessage(f"已添加 Prompt: {data['title']}")
     
     def edit_prompt(self, index, prompt_owner=None):
         """编辑 Prompt"""
-        owner = prompt_owner if prompt_owner is not None else self.current_category
+        owner = prompt_owner if prompt_owner is not None else self._get_current_cat()
         if owner is None:
             return
         prompts = owner["prompts"]
@@ -1011,7 +1075,7 @@ class PinPromptApp(QMainWindow):
     def delete_prompt(self, index, prompt_owner=None):
         """删除 Prompt 进回收站（prompt_owner 用于递归视图下指定所属分类）。"""
         from data_ops import next_trash_id
-        owner = prompt_owner if prompt_owner is not None else self.current_category
+        owner = prompt_owner if prompt_owner is not None else self._get_current_cat()
         if owner is None:
             return
         prompts = owner["prompts"]
@@ -1244,13 +1308,13 @@ class PinPromptApp(QMainWindow):
             kind = top_item.data(0, KIND_KEY)
             if kind not in ("top", "child"):
                 continue
-            cat = top_item.data(0, ROLE_KEY)
+            cat = self._find_real_cat(top_item)
             if cat is None:
                 continue
             cat["expanded"] = top_item.isExpanded()
             for j in range(top_item.childCount()):
                 child_item = top_item.child(j)
-                child_cat = child_item.data(0, ROLE_KEY)
+                child_cat = self._find_real_cat(child_item)
                 if child_cat is not None:
                     child_cat["expanded"] = child_item.isExpanded()
 
